@@ -1,0 +1,15 @@
+<button onclick="start()">Start</button>
+
+<script>
+  let ws;
+
+  function start() {
+    ws = new WebSocket("ws://localhost:8080/ws/audio");
+
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => ws.send(e.data);
+      rec.start(250);
+    });
+  }
+</script>
