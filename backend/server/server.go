@@ -22,7 +22,7 @@ func StartServer() error {
 	mux.HandleFunc("DELETE /songs/{id}", handlers.DeleteSongHandler)
 
 	// WebSocket audio ingestion
-	mux.HandleFunc("GET /ws/audio", audioWS)
+	mux.HandleFunc("GET /ws/audio", handlers.AudioWS)
 
 	log.Printf("Server listening on %s\n", addr)
 	return http.ListenAndServe(addr, loggingMiddleware(mux))
