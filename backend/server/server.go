@@ -24,6 +24,9 @@ func StartServer() error {
 	// WebSocket audio ingestion
 	mux.HandleFunc("GET /ws/audio", handlers.AudioWS)
 
+	// Song ingestion (file upload)
+	mux.HandleFunc("POST /songs/upload", handlers.UploadSong)
+
 	log.Printf("Server listening on %s\n", addr)
 	return http.ListenAndServe(addr, loggingMiddleware(mux))
 }

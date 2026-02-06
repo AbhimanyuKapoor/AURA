@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"aura/audio"
 	"aura/storage"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -124,4 +128,25 @@ func DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func UploadSong(w http.ResponseWriter, r *http.Request) {
+	file, header, err := r.FormFile("song")
+	if err != nil {
+		http.Error(w, "invalid file", 400)
+		return
+	}
+	defer file.Close()
+
+	path := filepath.Join("tmp", header.Filename)
+	out, _ := os.Create(path)
+	io.Copy(out, file)
+	out.Close()
+
+	if err := audio.RunIngestionPipeline(path); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
