@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -133,18 +134,57 @@ func DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 func UploadSong(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("song")
 	if err != nil {
-		http.Error(w, "invalid file", 400)
+		http.Error(w, "invalid file", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	path := filepath.Join("tmp", header.Filename)
-	out, _ := os.Create(path)
-	io.Copy(out, file)
-	out.Close()
+	// Stores received file audio
+	if err := os.MkdirAll("tmp", 0755); err != nil {
+		log.Printf("UploadSong: failed to create tmp dir: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	// temp file of uploaded song
+	ext := filepath.Ext(filepath.Base(header.Filename))
+	tmpFile, err := os.CreateTemp("tmp", "upload-*"+ext)
+	if err != nil {
+		log.Printf("UploadSong: failed to create temp upload file: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	path := tmpFile.Name()
+
+	defer func() {
+		if tmpFile != nil {
+			if err := tmpFile.Close(); err != nil {
+				log.Printf("UploadSong: failed to close temp upload file: %v", err)
+			}
+		}
+
+		if err := os.Remove(path); err != nil {
+			log.Printf("UploadSong: failed to remove temp file: %v", err)
+		}
+	}()
+
+	if _, err := io.Copy(tmpFile, file); err != nil {
+		log.Printf("UploadSong: failed to write uploaded file: %v", err)
+		http.Error(w, "failed to save file", http.StatusInternalServerError)
+		return
+	}
+
+	// close before running ingestion (ffmpeg)
+	if err := tmpFile.Close(); err != nil {
+		log.Printf("UploadSong: failed to close temp file before ingestion: %v", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	tmpFile = nil
 
 	if err := audio.RunIngestionPipeline(path); err != nil {
-		http.Error(w, err.Error(), 500)
+		log.Printf("UploadSong: ingestion pipeline failed: %v", err)
+		http.Error(w, "ingestion failed", http.StatusInternalServerError)
 		return
 	}
 

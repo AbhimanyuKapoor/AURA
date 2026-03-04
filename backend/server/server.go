@@ -28,5 +28,6 @@ func StartServer() error {
 	mux.HandleFunc("POST /songs/upload", handlers.UploadSong)
 
 	log.Printf("Server listening on %s\n", addr)
-	return http.ListenAndServe(addr, loggingMiddleware(mux))
+	handler := corsMiddleware(loggingMiddleware(mux))
+	return http.ListenAndServe(addr, handler)
 }

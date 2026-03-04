@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -19,12 +18,15 @@ func NormalizeAudio(input string, outDir string) (string, AudioMetadata, error) 
 		return "", AudioMetadata{}, fmt.Errorf("Input file not found: %s", input)
 	}
 
-	err := os.MkdirAll(outDir, 0755)
+	// temp output file for normalized audio of input
+	tmpOutFile, err := os.CreateTemp(outDir, "normalized-*.wav")
 	if err != nil {
-		return "", AudioMetadata{}, fmt.Errorf("Failed to create directory: %v", err)
+		return "", AudioMetadata{}, fmt.Errorf("failed to create output temp file: %v", err)
 	}
-
-	outputPath := filepath.Join(outDir, "normalized.wav")
+	outputPath := tmpOutFile.Name()
+	if err := tmpOutFile.Close(); err != nil {
+		return "", AudioMetadata{}, fmt.Errorf("failed to close output temp file: %v", err)
+	}
 
 	// FFmpeg command
 	cmd := exec.Command("ffmpeg", "-y",

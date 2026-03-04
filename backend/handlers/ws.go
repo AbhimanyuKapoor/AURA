@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/gorilla/websocket"
 )
@@ -21,19 +20,43 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Stores received audio
-	os.MkdirAll("tmp", 0755)
-
-	rawPath := filepath.Join("tmp", "input.webm")
-	rawFile, err := os.Create(rawPath)
-	if err != nil {
-		log.Println("failed to create file:", err)
+	// Stores received ws audio
+	if err := os.MkdirAll("tmp", 0755); err != nil {
+		log.Printf("AudioWS: failed to create tmp dir: %v", err)
+		conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "server error"),
+		)
 		return
 	}
-	defer rawFile.Close()
 
-	log.Println("Recording started...")
+	// temp file of recording to avoid overwrite issues
+	tmpFile, err := os.CreateTemp("tmp", "input-*.webm")
+	if err != nil {
+		log.Printf("AudioWS: failed to create temp file: %v", err)
+		conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "server error"),
+		)
+		return
+	}
 
+	rawPath := tmpFile.Name()
+
+	defer func() {
+		if tmpFile != nil {
+			if err := tmpFile.Close(); err != nil {
+				log.Printf("AudioWS: failed to close temp file: %v", err)
+			}
+		}
+
+		// remove the temp file
+		if err := os.Remove(rawPath); err != nil {
+			log.Printf("AudioWS: failed to remove temp file: %v", err)
+		}
+	}()
+
+	log.Printf("AudioWS: recording started, saving to %s", rawPath)
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
@@ -42,11 +65,21 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if msgType == websocket.BinaryMessage {
-			rawFile.Write(data)
+			if _, err := tmpFile.Write(data); err != nil {
+				log.Printf("AudioWS: failed to write audio chunk: %v", err)
+				break
+			}
 		}
 	}
+	log.Println("AudioWS: recording ended")
 
-	log.Println("Recording ended")
+	if err := tmpFile.Close(); err != nil {
+		log.Printf("AudioWS: failed to close temp file before processing: %v", err)
+		return
+	}
+	tmpFile = nil
 
-	audio.RunRecognitionPipeline(filepath.Join("tmp", "input.webm"))
+	if err := audio.RunRecognitionPipeline(rawPath); err != nil {
+		log.Printf("AudioWS: recognition pipeline failed: %v", err)
+	}
 }
