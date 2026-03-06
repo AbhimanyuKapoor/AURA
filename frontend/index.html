@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Aura</title>
+  </head>
+  <body>
+    <button id="start">Start</button>
+    <button id="stop" disabled>Stop</button>
+
+    <br />
+    <hr />
+
+    <input type="file" id="songFile" accept="audio/*" />
+    <button onclick="uploadSong()">Upload Song</button>
+  </body>
+
+  <script>
+    let ws;
+    let recorder;
+    let stream;
+
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
+
+    startBtn.onclick = start;
+    stopBtn.onclick = stop;
+
+    // Websocket Functions
+    async function start() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Mic permission granted");
+      } catch (e) {
+        console.error("Mic permission error:", e);
+        alert("Mic permission denied");
+        return;
+      }
+
+      recorder = new MediaRecorder(stream);
+      recorder.onstart = () => console.log("Recorder started");
+      recorder.onstop = () => console.log("Recorder stopped");
+
+      // encoded audio chunk sent to backend
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+          ws.send(e.data);
+        }
+      };
+
+      ws = new WebSocket("ws://localhost:8080/ws/audio");
+
+      ws.onopen = () => {
+        console.log("WS open");
+        recorder.start(1000);
+      };
+
+      ws.onclose = (e) => {
+        console.log("WS closed:", e.code, e.reason);
+      };
+
+      ws.onerror = (e) => {
+        console.log("WS error", e);
+      };
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    }
+
+    function stop() {
+      recorder?.stop();
+      stream?.getTracks().forEach((t) => t.stop());
+      ws?.close();
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+
+    // Song Ingestion Function
+    async function uploadSong() {
+      const fileInput = document.getElementById("songFile");
+      if (!fileInput.files.length) {
+        alert("Select a file");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("song", fileInput.files[0]);
+
+      const res = await fetch("http://localhost:8080/songs/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        alert("Song uploaded");
+      } else {
+        alert("Upload failed");
+      }
+    }
+  </script>
+</html>
