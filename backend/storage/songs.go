@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 )
 
 type Song struct {
@@ -32,6 +33,20 @@ func CreateSong(song Song) error {
 	)
 
 	return err
+}
+
+// InsertSong creates a new song record and returns its auto-generated ID.
+// Used by UploadSong so we can associate fingerprints with the correct song.
+func InsertSong(title, artist string) (int, error) {
+	var id int
+	err := db.QueryRow(
+		`INSERT INTO songs (title, artist) VALUES ($1, $2) RETURNING id`,
+		title, artist,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("insert song: %w", err)
+	}
+	return id, nil
 }
 
 func GetSongByID(id int) (*Song, error) {

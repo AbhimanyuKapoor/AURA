@@ -15,6 +15,8 @@ func StartServer() error {
 	mux := http.NewServeMux()
 
 	// Songs CRUD
+	// Add this line alongside the other routes:
+	mux.HandleFunc("POST /recognize", handlers.RecognizeHandler)
 	mux.HandleFunc("POST /songs", handlers.CreateSongHandler)
 	mux.HandleFunc("GET /songs", handlers.ListSongsHandler)
 	mux.HandleFunc("GET /songs/{id}", handlers.GetSongHandler)

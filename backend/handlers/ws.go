@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"aura/audio"
+	"aura/storage"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,29 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+// wsIncoming is parsed from text messages sent by the client.
+// The client sends {"type":"end"} when it's finished streaming audio.
+type wsIncoming struct {
+	Type string `json:"type"`
+}
+
+// wsResult is the JSON payload sent back to the client after recognition.
+type wsResult struct {
+	Found  bool   `json:"found"`
+	SongID int    `json:"song_id,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Artist string `json:"artist,omitempty"`
+	Score  int    `json:"score,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// AudioWS handles the real-time recognition WebSocket at GET /ws/audio.
+//
+// Protocol:
+//  1. Client streams audio as binary WebSocket messages (encoded as webm/opus)
+//  2. Client sends {"type":"end"} text message when done recording
+//  3. Server runs recognition pipeline and responds with wsResult JSON
+//  4. Server closes the connection
 func AudioWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -20,66 +45,89 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Stores received ws audio
 	if err := os.MkdirAll("tmp", 0755); err != nil {
-		log.Printf("AudioWS: failed to create tmp dir: %v", err)
-		conn.WriteMessage(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "server error"),
-		)
+		log.Printf("AudioWS: mkdir: %v", err)
 		return
 	}
 
-	// temp file of recording to avoid overwrite issues
 	tmpFile, err := os.CreateTemp("tmp", "input-*.webm")
 	if err != nil {
-		log.Printf("AudioWS: failed to create temp file: %v", err)
-		conn.WriteMessage(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "server error"),
-		)
+		log.Printf("AudioWS: create temp: %v", err)
 		return
 	}
-
 	rawPath := tmpFile.Name()
-
 	defer func() {
 		if tmpFile != nil {
-			if err := tmpFile.Close(); err != nil {
-				log.Printf("AudioWS: failed to close temp file: %v", err)
-			}
+			tmpFile.Close()
 		}
-
-		// remove the temp file
-		if err := os.Remove(rawPath); err != nil {
-			log.Printf("AudioWS: failed to remove temp file: %v", err)
-		}
+		os.Remove(rawPath)
 	}()
 
-	log.Printf("AudioWS: recording started, saving to %s", rawPath)
+	log.Printf("AudioWS: recording started → %s", rawPath)
+
+	// ── Receive audio chunks until client sends "end" ────────────────────
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
-			break
+			// Client disconnected before sending "end" — can't send result back
+			log.Printf("AudioWS: connection lost before end signal: %v", err)
+			return
 		}
 
-		if msgType == websocket.BinaryMessage {
+		switch msgType {
+		case websocket.BinaryMessage:
+			// Audio chunk — append to temp file
 			if _, err := tmpFile.Write(data); err != nil {
-				log.Printf("AudioWS: failed to write audio chunk: %v", err)
-				break
+				log.Printf("AudioWS: write chunk: %v", err)
+				return
+			}
+
+		case websocket.TextMessage:
+			// Control message — check for "end" signal
+			var msg wsIncoming
+			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "end" {
+				goto done // break out of the loop cleanly
 			}
 		}
 	}
-	log.Println("AudioWS: recording ended")
+
+done:
+	log.Println("AudioWS: received end signal, running recognition...")
 
 	if err := tmpFile.Close(); err != nil {
-		log.Printf("AudioWS: failed to close temp file before processing: %v", err)
+		log.Printf("AudioWS: close temp: %v", err)
+		conn.WriteJSON(wsResult{Error: "server error"})
 		return
 	}
 	tmpFile = nil
 
-	if err := audio.RunRecognitionPipeline(rawPath); err != nil {
-		log.Printf("AudioWS: recognition pipeline failed: %v", err)
+	// ── Run recognition pipeline ─────────────────────────────────────────
+	result, err := audio.RunRecognitionPipeline(rawPath)
+	if err != nil {
+		log.Printf("AudioWS: recognition failed: %v", err)
+		conn.WriteJSON(wsResult{Error: "recognition failed"})
+		return
 	}
+
+	// ── Build and send response ──────────────────────────────────────────
+	resp := wsResult{}
+	if result == nil {
+		resp.Found = false
+	} else {
+		resp.Found = true
+		resp.SongID = result.SongID
+		resp.Score = result.Score
+
+		// Enrich with song metadata
+		if song, err := storage.GetSongByID(result.SongID); err == nil {
+			resp.Title = song.Title
+			resp.Artist = song.Artist
+		}
+	}
+
+	if err := conn.WriteJSON(resp); err != nil {
+		log.Printf("AudioWS: send result: %v", err)
+	}
+	log.Printf("AudioWS: done — found=%v title=%q score=%d",
+		resp.Found, resp.Title, resp.Score)
 }
