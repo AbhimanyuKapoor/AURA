@@ -5,98 +5,107 @@
     <title>Aura</title>
   </head>
   <body>
-    <button id="start">Start</button>
-    <button id="stop" disabled>Stop</button>
+    <h2>🎵 Aura – Song Recognition</h2>
 
-    <br />
+    <!-- Recognition via microphone -->
+    <h3>Recognize a Song</h3>
+    <button id="start">🎙️ Start Listening</button>
+    <button id="stop" disabled>⏹️ Stop</button>
+    <div id="result" style="margin-top:20px; font-size:1.2em;"></div>
+
     <hr />
 
-    <input type="file" id="songFile" accept="audio/*" />
-    <button onclick="uploadSong()">Upload Song</button>
+    <!-- Song ingestion via file upload -->
+    <h3>Upload a Song to Database</h3>
+    <input type="text"  id="songTitle"  placeholder="Song title (required)" />
+    <input type="text"  id="songArtist" placeholder="Artist (optional)" />
+    <br /><br />
+    <input type="file"  id="songFile" accept="audio/*" />
+    <button onclick="uploadSong()">⬆️ Upload Song</button>
   </body>
 
   <script>
-    let ws;
-    let recorder;
-    let stream;
-
+    let ws, recorder, stream;
     const startBtn = document.getElementById("start");
-    const stopBtn = document.getElementById("stop");
-
+    const stopBtn  = document.getElementById("stop");
     startBtn.onclick = start;
-    stopBtn.onclick = stop;
+    stopBtn.onclick  = stop;
 
-    // Websocket Functions
     async function start() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Mic permission granted");
       } catch (e) {
-        console.error("Mic permission error:", e);
-        alert("Mic permission denied");
+        alert("Microphone permission denied");
         return;
       }
-
-      recorder = new MediaRecorder(stream);
-      recorder.onstart = () => console.log("Recorder started");
-      recorder.onstop = () => console.log("Recorder stopped");
-
-      // encoded audio chunk sent to backend
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-          ws.send(e.data);
-        }
-      };
 
       ws = new WebSocket("ws://localhost:8080/ws/audio");
 
       ws.onopen = () => {
-        console.log("WS open");
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+            ws.send(e.data);
+          }
+        };
         recorder.start(1000);
+        startBtn.disabled = true;
+        stopBtn.disabled  = false;
+        setResult("🎙️ Listening...");
       };
 
-      ws.onclose = (e) => {
-        console.log("WS closed:", e.code, e.reason);
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.error) {
+          setResult("❌ Error: " + data.error);
+        } else if (data.found) {
+          setResult(`🎵 ${data.title} — ${data.artist}  (confidence: ${data.score})`);
+        } else {
+          setResult("🔍 No match found");
+        }
+        ws.close();
+      };
+
+      ws.onclose = () => {
+        startBtn.disabled = false;
+        stopBtn.disabled  = true;
       };
 
       ws.onerror = (e) => {
-        console.log("WS error", e);
+        console.error("WS error", e);
+        setResult("❌ Connection error");
       };
-
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
     }
 
     function stop() {
       recorder?.stop();
       stream?.getTracks().forEach((t) => t.stop());
-      ws?.close();
-
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "end" }));
+        setResult("⏳ Recognizing...");
+      }
     }
 
-    // Song Ingestion Function
     async function uploadSong() {
       const fileInput = document.getElementById("songFile");
-      if (!fileInput.files.length) {
-        alert("Select a file");
-        return;
-      }
+      const title     = document.getElementById("songTitle").value;
+      if (!fileInput.files.length) { alert("Select a file"); return; }
+      if (!title)                  { alert("Enter a title"); return; }
 
       const formData = new FormData();
-      formData.append("song", fileInput.files[0]);
+      formData.append("song",   fileInput.files[0]);
+      formData.append("title",  title);
+      formData.append("artist", document.getElementById("songArtist").value);
 
-      const res = await fetch("http://localhost:8080/songs/upload", {
-        method: "POST",
-        body: formData,
+      const res  = await fetch("http://localhost:8080/songs/upload", {
+        method: "POST", body: formData,
       });
+      const body = await res.json();
+      alert(res.ok ? `✅ Uploaded! Song ID: ${body.song_id}` : `❌ Upload failed`);
+    }
 
-      if (res.ok) {
-        alert("Song uploaded");
-      } else {
-        alert("Upload failed");
-      }
+    function setResult(msg) {
+      document.getElementById("result").textContent = msg;
     }
   </script>
 </html>
