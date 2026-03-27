@@ -1,0 +1,11 @@
+Flask==3.0.3
+flask_cors==4.0.0
+psycopg[binary]==3.1.18
+pgvector==0.2.5
+numpy<2.0.0
+basic-pitch==0.3.0
+librosa==0.10.1
+tensorflow==2.15.0
+gunicorn==22.0.0
+pandas==2.2.0
+requests==2.31.0

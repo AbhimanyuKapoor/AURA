@@ -49,4 +49,5 @@ def generate_embedding(temp_audio_path):
     midi_data = audio_to_midi(temp_audio_path)
     pitches = get_pitch_vector(midi_data)
     emb = create_note_histogram(pitches)
-    return emb
+    # Cast to float32 list for pgvector compatibility (avoids smallint[] cast error)
+    return [float(x) for x in emb]

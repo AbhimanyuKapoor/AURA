@@ -15,7 +15,7 @@ function Results() {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center text-zinc-500 font-mono text-xs z-10 relative">
         <p>No matches found.</p>
-        <button onClick={handleBackClick} className="mt-4 text-emerald-400 hover:underline">Go Back</button>
+        <button onClick={handleBackClick} className="mt-4 text-white hover:underline">Go Back</button>
       </div>
     );
   }
@@ -34,7 +34,7 @@ function Results() {
         >
           <ArrowLeft size={16} />
         </button>
-        <div className="text-[10px] font-mono text-emerald-400/80 uppercase tracking-[0.3em] font-semibold bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.1)] backdrop-blur-sm">
+        <div className="text-[10px] font-mono text-white/80 uppercase tracking-[0.3em] font-semibold bg-white/10 border border-white/20 px-4 py-2 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-sm">
           Match Found
         </div>
       </div>
@@ -66,7 +66,9 @@ function Results() {
       {/* Track Info */}
       <div className="text-center px-8 w-full max-w-2xl">
         <h2 className="text-3xl md:text-4xl font-black text-white truncate w-full tracking-tight drop-shadow-xl">{topMatch.track}</h2>
-        <p className="text-base md:text-lg font-medium text-emerald-400 mt-2 truncate tracking-wide drop-shadow-md">{topMatch.artist}</p>
+        <p className="text-base md:text-lg font-medium text-white shadow-zinc-900 drop-shadow-md mt-2 truncate tracking-wide">
+          {topMatch.artist}
+        </p>
       </div>
 
       {/* Audio Player */}
@@ -92,7 +94,7 @@ function Results() {
               <div key={index} className="flex items-center justify-between py-4 px-6 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors cursor-default group">
                 <div className="flex flex-col min-w-0 pr-6">
                   <p className="text-base font-bold text-zinc-300 truncate group-hover:text-white transition-colors">{track.track}</p>
-                  <p className="text-xs text-zinc-500 truncate mt-1 group-hover:text-emerald-400/80 transition-colors uppercase tracking-wider">{track.artist}</p>
+                  <p className="text-xs text-zinc-500 truncate mt-1 group-hover:text-white/80 transition-colors uppercase tracking-wider">{track.artist}</p>
                 </div>
                 {track.album_image && (
                   <img src={track.album_image} alt={track.album} className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity shadow-lg group-hover:shadow-[0_0_15px_rgba(255,255,255,0.2)]" />

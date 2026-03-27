@@ -111,7 +111,7 @@ export default function AudioVisualizer({ isRecording, stream }) {
         { r: 6,   g: 182, b: 212, speed: -0.2,  offset: 0.38, sizeScale: 1.5 }, // Cyan
         { r: 244, g: 63,  b: 94,  speed: 0.1,   offset: 0.50, sizeScale: 1.4 }, // Rose
         { r: 168, g: 85,  b: 247, speed: -0.3,  offset: 0.62, sizeScale: 1.6 }, // Purple
-        { r: 16,  g: 185, b: 129, speed: 0.15,  offset: 0.75, sizeScale: 1.3 }, // Emerald
+        { r: 255, g: 255, b: 255, speed: 0.15,  offset: 0.75, sizeScale: 1.3 }, // White
         { r: 245, g: 158, b: 11,  speed: -0.25, offset: 0.88, sizeScale: 1.5 }  // Amber
       ];
 
