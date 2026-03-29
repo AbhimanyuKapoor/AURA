@@ -14,9 +14,12 @@ func StartServer() error {
 
 	mux := http.NewServeMux()
 
+	// Server health check
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// Songs CRUD
-	// Add this line alongside the other routes:
-	mux.HandleFunc("POST /recognize", handlers.RecognizeHandler)
 	mux.HandleFunc("POST /songs", handlers.CreateSongHandler)
 	mux.HandleFunc("GET /songs", handlers.ListSongsHandler)
 	mux.HandleFunc("GET /songs/{id}", handlers.GetSongHandler)
@@ -28,6 +31,9 @@ func StartServer() error {
 
 	// Song ingestion (file upload)
 	mux.HandleFunc("POST /songs/upload", handlers.UploadSong)
+
+	// Song recognition
+	mux.HandleFunc("POST /recognize", handlers.RecognizeHandler)
 
 	log.Printf("Server listening on %s\n", addr)
 	handler := corsMiddleware(loggingMiddleware(mux))

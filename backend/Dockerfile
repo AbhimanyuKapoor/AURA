@@ -1,15 +1,15 @@
 FROM golang:1.25
 
-# Install ffmpeg — needed for audio normalization
+# Install ffmpeg
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy dependency files first (better Docker layer caching)
+# Copy dependency files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the rest of the source code
+# Copy source code
 COPY . .
 
 # Build the binary

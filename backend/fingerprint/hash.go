@@ -18,16 +18,14 @@ const (
 // Thousands of these represent a single song's fingerprint.
 type FingerprintHash struct {
 	Hash       int64 // encodes (anchorFreq, targetFreq, timeDelta)
-	TimeOffset int   // anchor's frame index — used for time-coherence scoring
+	TimeOffset int   // anchor's frame index - used for time-coherence scoring
 }
 
 // encodeHash packs three values into a single int64 using bit fields:
 //
-//	bits 33–22: anchor frequency bin  (11 bits, range 0–2047)
-//	bits 21–11: target frequency bin  (11 bits, range 0–2047)
-//	bits 10–0:  time delta in frames  (11 bits, range 0–2047)
-//
-// Total: 33 bits — fits comfortably in int64 with no collision risk.
+//	bits 33–22: anchor frequency bin
+//	bits 21–11: target frequency bin
+//	bits 10–0:  time delta in frames
 func encodeHash(anchorFreq, targetFreq, timeDelta int) int64 {
 	return int64(anchorFreq)<<22 | int64(targetFreq)<<11 | int64(timeDelta)
 }
@@ -40,7 +38,7 @@ func encodeHash(anchorFreq, targetFreq, timeDelta int) int64 {
 //  3. Encode (anchorFreq, targetFreq, timeDelta) as a single hash
 //  4. Store the anchor's time offset alongside the hash
 //
-// The time offset is what enables time-coherence matching later —
+// The time offset is what enables time-coherence matching later -
 // a real match will have all its hashes offset by the same time delta.
 func GenerateHashes(peaks []Peak) []FingerprintHash {
 	var hashes []FingerprintHash

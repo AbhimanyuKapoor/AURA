@@ -32,7 +32,7 @@ func CreateSongHandler(w http.ResponseWriter, r *http.Request) {
 		Artist:   req.Artist,
 		Metadata: req.Metadata,
 	}
-	if err := storage.CreateSong(song); err != nil {
+	if _, err := storage.CreateSong(song); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -116,11 +116,10 @@ func DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UploadSong handles POST /songs/upload
 // Expects multipart form fields:
-//   - "song"   — audio file (any ffmpeg-supported format)
-//   - "title"  — song title (required)
-//   - "artist" — artist name (optional)
+//   - "song"   - audio file (any ffmpeg-supported format)
+//   - "title"  - song title (required)
+//   - "artist" - artist name (optional)
 func UploadSong(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(64 << 20); err != nil {
 		http.Error(w, "failed to parse form", http.StatusBadRequest)
@@ -141,8 +140,8 @@ func UploadSong(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Create the song DB record first — we need its ID for fingerprints
-	songID, err := storage.InsertSong(title, artist)
+	// Create the song DB record first - we need its ID for fingerprints
+	songID, err := storage.CreateSong(storage.Song{Title: title, Artist: artist})
 	if err != nil {
 		log.Printf("UploadSong: create record: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -165,9 +164,14 @@ func UploadSong(w http.ResponseWriter, r *http.Request) {
 	path := tmpFile.Name()
 	defer func() {
 		if tmpFile != nil {
-			tmpFile.Close()
+			if err := tmpFile.Close(); err != nil {
+				log.Printf("UploadSong: failed to close temp upload file: %v", err)
+			}
 		}
-		os.Remove(path)
+
+		if err := os.Remove(path); err != nil {
+			log.Printf("UploadSong: failed to remove temp file: %v", err)
+		}
 	}()
 
 	if _, err := io.Copy(tmpFile, file); err != nil {

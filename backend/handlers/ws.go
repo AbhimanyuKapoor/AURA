@@ -15,13 +15,11 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// wsIncoming is parsed from text messages sent by the client.
 // The client sends {"type":"end"} when it's finished streaming audio.
 type wsIncoming struct {
 	Type string `json:"type"`
 }
 
-// wsResult is the JSON payload sent back to the client after recognition.
 type wsResult struct {
 	Found  bool   `json:"found"`
 	SongID int    `json:"song_id,omitempty"`
@@ -31,13 +29,7 @@ type wsResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// AudioWS handles the real-time recognition WebSocket at GET /ws/audio.
-//
-// Protocol:
-//  1. Client streams audio as binary WebSocket messages (encoded as webm/opus)
-//  2. Client sends {"type":"end"} text message when done recording
-//  3. Server runs recognition pipeline and responds with wsResult JSON
-//  4. Server closes the connection
+// AudioWS handles the real-time recognition
 func AudioWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -50,6 +42,7 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// temp file of recording to avoid overwrite issues
 	tmpFile, err := os.CreateTemp("tmp", "input-*.webm")
 	if err != nil {
 		log.Printf("AudioWS: create temp: %v", err)
@@ -58,35 +51,39 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 	rawPath := tmpFile.Name()
 	defer func() {
 		if tmpFile != nil {
-			tmpFile.Close()
+			if err := tmpFile.Close(); err != nil {
+				log.Printf("AudioWS: failed to close temp file: %v", err)
+			}
 		}
-		os.Remove(rawPath)
+
+		if err := os.Remove(rawPath); err != nil {
+			log.Printf("AudioWS: failed to remove temp file: %v", err)
+		}
 	}()
 
-	log.Printf("AudioWS: recording started → %s", rawPath)
+	log.Printf("AudioWS: recording started -> %s", rawPath)
 
-	// ── Receive audio chunks until client sends "end" ────────────────────
+	// Receive audio chunks until client sends "end"
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
-			// Client disconnected before sending "end" — can't send result back
 			log.Printf("AudioWS: connection lost before end signal: %v", err)
 			return
 		}
 
 		switch msgType {
 		case websocket.BinaryMessage:
-			// Audio chunk — append to temp file
+			// Audio chunk: append to temp file
 			if _, err := tmpFile.Write(data); err != nil {
 				log.Printf("AudioWS: write chunk: %v", err)
 				return
 			}
 
 		case websocket.TextMessage:
-			// Control message — check for "end" signal
+			// Control message: check for "end" signal
 			var msg wsIncoming
 			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "end" {
-				goto done // break out of the loop cleanly
+				goto done
 			}
 		}
 	}
@@ -101,7 +98,7 @@ done:
 	}
 	tmpFile = nil
 
-	// ── Run recognition pipeline ─────────────────────────────────────────
+	// Run recognition pipeline
 	result, err := audio.RunRecognitionPipeline(rawPath)
 	if err != nil {
 		log.Printf("AudioWS: recognition failed: %v", err)
@@ -109,7 +106,7 @@ done:
 		return
 	}
 
-	// ── Build and send response ──────────────────────────────────────────
+	// Build and send response
 	resp := wsResult{}
 	if result == nil {
 		resp.Found = false
@@ -118,7 +115,6 @@ done:
 		resp.SongID = result.SongID
 		resp.Score = result.Score
 
-		// Enrich with song metadata
 		if song, err := storage.GetSongByID(result.SongID); err == nil {
 			resp.Title = song.Title
 			resp.Artist = song.Artist
@@ -128,6 +124,6 @@ done:
 	if err := conn.WriteJSON(resp); err != nil {
 		log.Printf("AudioWS: send result: %v", err)
 	}
-	log.Printf("AudioWS: done — found=%v title=%q score=%d",
+	log.Printf("AudioWS: done - found=%v title=%q score=%d",
 		resp.Found, resp.Title, resp.Score)
 }

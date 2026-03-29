@@ -8,7 +8,7 @@ import (
 )
 
 // StoreFingerprints inserts all fingerprint hashes for a song in one transaction.
-// Uses a prepared statement for performance — a 3-minute song can generate
+// Uses a prepared statement for performance - a 3-minute song can generate
 // 100,000+ hashes so individual inserts would be far too slow.
 func StoreFingerprints(songID int, hashes []fingerprint.FingerprintHash) error {
 	if len(hashes) == 0 {
@@ -43,7 +43,7 @@ func StoreFingerprints(songID int, hashes []fingerprint.FingerprintHash) error {
 
 // LookupHashes fetches all DB fingerprints matching any of the given hashes.
 // Uses PostgreSQL's ANY($1) operator for a single round-trip instead of N queries.
-// Returns a map of hash → list of matches (a hash can appear in multiple songs).
+// Returns a map of hash - list of matches (a hash can appear in multiple songs).
 func LookupHashes(hashes []int64) (map[int64][]fingerprint.DBMatch, error) {
 	if len(hashes) == 0 {
 		return nil, nil

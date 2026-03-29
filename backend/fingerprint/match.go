@@ -3,13 +3,13 @@ package fingerprint
 // DBMatch is a record from the fingerprint database matching a given hash.
 type DBMatch struct {
 	SongID     int
-	TimeOffset int // time offset of this hash in the stored (reference) song
+	TimeOffset int
 }
 
 // MatchResult is the output of a recognition attempt.
 type MatchResult struct {
 	SongID int
-	Score  int // peak histogram count — higher means more confident match
+	Score  int // peak histogram count - higher means more confident match
 }
 
 // ScoreMatches finds the best-matching song using time-coherence scoring.
@@ -20,10 +20,10 @@ type MatchResult struct {
 //   - This is because the query clip is just a time-shifted slice of the song
 //   - For a wrong song or random noise, the time differences are all random
 //
-// So we build a histogram of (songID → timeDelta → count).
+// So we build a histogram of (songID -> timeDelta -> count).
 // The song with the highest spike in that histogram is the match.
 //
-// lookupFn is a batch DB query — we pass all hashes at once to avoid N+1 queries.
+// lookupFn is a batch DB query - we pass all hashes at once to avoid N+1 queries.
 func ScoreMatches(
 	queryHashes []FingerprintHash,
 	lookupFn func([]int64) (map[int64][]DBMatch, error),

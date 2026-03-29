@@ -23,7 +23,7 @@ func ReadWAV(path string) (*WAVData, error) {
 	}
 	defer f.Close()
 
-	// ── RIFF header ──────────────────────────────────────────────────────────
+	// RIFF header
 	var riffID [4]byte
 	if err := binary.Read(f, binary.LittleEndian, &riffID); err != nil {
 		return nil, fmt.Errorf("wav: read RIFF tag: %w", err)
@@ -43,7 +43,7 @@ func ReadWAV(path string) (*WAVData, error) {
 		return nil, fmt.Errorf("wav: not a WAVE file")
 	}
 
-	// ── Sub-chunks ────────────────────────────────────────────────────────────
+	// Sub-chunks
 	var (
 		sampleRate    uint32
 		bitsPerSample uint16
@@ -82,6 +82,9 @@ func ReadWAV(path string) (*WAVData, error) {
 			if bitsPerSample != 16 {
 				return nil, fmt.Errorf("wav: only 16-bit supported (got %d-bit)", bitsPerSample)
 			}
+			if numChannels != 1 {
+				return nil, fmt.Errorf("wav: only mono supported (got %d channels)", numChannels)
+			}
 			// Skip any extra fmt extension bytes
 			if size > 16 {
 				io.CopyN(io.Discard, f, int64(size-16))
@@ -94,7 +97,7 @@ func ReadWAV(path string) (*WAVData, error) {
 			if err := binary.Read(f, binary.LittleEndian, raw); err != nil {
 				return nil, fmt.Errorf("wav: read PCM samples: %w", err)
 			}
-			// Normalize int16 → float64 in range [-1.0, 1.0]
+			// Normalize int16 -> float64 in range [-1.0, 1.0]
 			samples := make([]float64, numSamples)
 			for i, s := range raw {
 				samples[i] = float64(s) / math.MaxInt16
@@ -105,7 +108,7 @@ func ReadWAV(path string) (*WAVData, error) {
 			}, nil
 
 		default:
-			// Unknown chunks (LIST, INFO, fact, etc.) — just skip
+			// Unknown chunks (LIST, INFO, fact, etc.) - just skip
 			if _, err := io.CopyN(io.Discard, f, int64(size)); err != nil {
 				return nil, fmt.Errorf("wav: skip chunk %q: %w", id, err)
 			}

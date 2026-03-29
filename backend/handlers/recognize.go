@@ -19,12 +19,7 @@ type RecognizeResponse struct {
 	Score  int    `json:"score,omitempty"`
 }
 
-// RecognizeHandler accepts a POST with a "clip" audio file and returns the
-// matched song metadata. This is the REST alternative to the WebSocket endpoint.
-//
-// Usage:
-//
-//	curl -X POST /recognize -F "clip=@sample.mp3"
+// RecognizeHandler accepts a POST with a "clip" audio file and returns the matched song metadata
 func RecognizeHandler(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("clip")
 	if err != nil {
