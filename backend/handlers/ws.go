@@ -27,6 +27,7 @@ type wsResult struct {
 	Artist string `json:"artist,omitempty"`
 	Score  int    `json:"score,omitempty"`
 	Error  string `json:"error,omitempty"`
+	OffsetSeconds float64 `json:"offset_seconds,omitempty"`
 }
 
 // AudioWS handles the real-time recognition
@@ -115,6 +116,12 @@ done:
 		resp.SongID = result.SongID
 		resp.Score = result.Score
 
+		offset := float64(result.TimeDelta) * (2048.0 / 22050.0)
+        if offset < 0 {
+            offset = 0
+        }
+        resp.OffsetSeconds = offset
+		
 		if song, err := storage.GetSongByID(result.SongID); err == nil {
 			resp.Title = song.Title
 			resp.Artist = song.Artist

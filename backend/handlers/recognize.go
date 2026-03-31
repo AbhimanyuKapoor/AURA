@@ -17,6 +17,7 @@ type RecognizeResponse struct {
 	Title  string `json:"title,omitempty"`
 	Artist string `json:"artist,omitempty"`
 	Score  int    `json:"score,omitempty"`
+	OffsetSeconds float64 `json:"offset_seconds,omitempty"`
 }
 
 // RecognizeHandler accepts a POST with a "clip" audio file and returns the matched song metadata
@@ -83,6 +84,12 @@ func RecognizeHandler(w http.ResponseWriter, r *http.Request) {
 	resp.SongID = result.SongID
 	resp.Score = result.Score
 
+	offset := float64(result.TimeDelta) * (2048.0 / 22050.0)
+    if offset < 0 {
+        offset = 0
+    }
+    resp.OffsetSeconds = offset
+	
 	song, err := storage.GetSongByID(result.SongID)
 	if err == nil {
 		resp.Title = song.Title

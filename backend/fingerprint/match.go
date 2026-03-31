@@ -10,6 +10,7 @@ type DBMatch struct {
 type MatchResult struct {
 	SongID int
 	Score  int // peak histogram count - higher means more confident match
+	TimeDelta int
 }
 
 // ScoreMatches finds the best-matching song using time-coherence scoring.
@@ -81,12 +82,14 @@ func ScoreMatches(
 	// Find the (songID, timeDelta) pair with the highest count
 	bestSongID := -1
 	bestScore := 0
+	bestTimeDelta := 0
 
 	for songID, deltas := range histogram {
-		for _, count := range deltas {
+		for delta, count := range deltas {
 			if count > bestScore {
 				bestScore = count
 				bestSongID = songID
+				bestTimeDelta = delta
 			}
 		}
 	}
@@ -98,5 +101,6 @@ func ScoreMatches(
 	return &MatchResult{
 		SongID: bestSongID,
 		Score:  bestScore,
+		TimeDelta: bestTimeDelta,
 	}, nil
 }

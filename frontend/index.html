@@ -32,6 +32,7 @@
         --accent: #4f8ef7;
         --accent-dim: rgba(79, 142, 247, 0.12);
         --ok: #3ecf8e;
+        --warn: #eab308;
         --err: #f76f6f;
         --radius-sm: 6px;
         --radius: 10px;
@@ -450,21 +451,33 @@
         color: var(--err);
       }
 
-      /* PLACEHOLDER */
-      .placeholder {
+      /* SPECTROGRAM CANVAS STYLES */
+      .canvas-container {
         background: var(--bg);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         min-height: 156px;
+        position: relative;
+        overflow: hidden;
+      }
+      #spectrogramCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .canvas-overlay {
+        position: absolute;
+        inset: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        position: relative;
-        overflow: hidden;
+        background: var(--bg);
+        transition: opacity 0.3s;
+        z-index: 10;
+        pointer-events: none;
       }
-      .placeholder::before {
+      .canvas-overlay::before {
         content: "";
         position: absolute;
         inset: 0;
@@ -472,6 +485,7 @@
           linear-gradient(var(--border) 1px, transparent 1px),
           linear-gradient(90deg, var(--border) 1px, transparent 1px);
         background-size: 28px 28px;
+        z-index: -1;
       }
       .ph-badge {
         position: relative;
@@ -489,31 +503,49 @@
         font-size: 0.8rem;
         color: var(--text-3);
       }
-      .log-rows {
-        position: absolute;
-        inset: 0;
-        padding: 14px 18px;
+      .canvas-container.active .canvas-overlay {
+        opacity: 0;
+      }
+
+      /* TERMINAL LOGS STYLES */
+      .terminal {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        height: 220px;
+        padding: 16px;
+        overflow-y: auto;
+        font-family: var(--mono);
+        font-size: 0.75rem;
         display: flex;
         flex-direction: column;
-        gap: 9px;
-      }
-      .log-row {
-        display: flex;
-        align-items: center;
         gap: 8px;
+        scroll-behavior: smooth;
       }
-      .log-ts {
-        width: 48px;
-        height: 6px;
-        background: var(--border);
-        border-radius: 3px;
+      .term-row {
+        display: flex;
+        gap: 10px;
+        line-height: 1.5;
+        animation: slideIn 0.2s ease-out;
+      }
+      .term-ts {
+        color: var(--text-3);
         flex-shrink: 0;
       }
-      .log-ln {
-        height: 6px;
-        background: var(--border);
-        border-radius: 3px;
+      .term-msg {
+        color: var(--text-2);
+        word-break: break-word;
       }
+      .term-msg.info { color: var(--accent); }
+      .term-msg.ok { color: var(--ok); }
+      .term-msg.warn { color: var(--warn); }
+      .term-msg.err { color: var(--err); }
+      .term-msg.dim { color: var(--text-3); }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 10px; }
 
       /* ANIMATIONS */
       @keyframes blink {
@@ -554,6 +586,10 @@
           transform: none;
         }
       }
+      @keyframes slideIn { 
+        from { opacity: 0; transform: translateX(-5px); } 
+        to { opacity: 1; transform: none; } 
+      }
 
       @media (max-width: 720px) {
         .wrapper {
@@ -591,7 +627,6 @@
       </header>
 
       <div class="grid">
-        <!-- RECOGNIZE -->
         <div class="card span-2">
           <div class="card-eyebrow">Microphone</div>
           <div class="card-heading">Recognize a Song</div>
@@ -643,15 +678,17 @@
               <div class="card-eyebrow" style="margin-bottom: 10px">
                 Live Output
               </div>
-              <div class="placeholder" style="min-height: 144px">
-                <div class="ph-badge">Coming Soon</div>
-                <div class="ph-label">Spectrogram</div>
+              <div class="canvas-container" id="canvasContainer">
+                <div class="canvas-overlay" id="canvasOverlay">
+                  <div class="ph-badge">Waiting</div>
+                  <div class="ph-label" style="margin-top: 8px;">Spectrogram</div>
+                </div>
+                <canvas id="spectrogramCanvas"></canvas>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- UPLOAD -->
         <div class="card">
           <div class="card-eyebrow">Ingestion</div>
           <div class="card-heading">Add to Database</div>
@@ -678,41 +715,20 @@
             </div>
             <div id="fileName"></div>
           </div>
-          <button class="btn btn-primary" onclick="uploadSong()">
+          <button class="btn btn-primary" onclick="uploadSong()" style="width: 100%;">
             Upload Song
           </button>
           <div id="uploadStatus"></div>
         </div>
 
-        <!-- LOGS -->
         <div class="card">
           <div class="card-eyebrow">Pipeline</div>
           <div class="card-heading">Processing Logs</div>
-          <div class="placeholder">
-            <div class="log-rows">
-              <div class="log-row">
-                <div class="log-ts"></div>
-                <div class="log-ln" style="width: 60%"></div>
-              </div>
-              <div class="log-row">
-                <div class="log-ts"></div>
-                <div class="log-ln" style="width: 78%"></div>
-              </div>
-              <div class="log-row">
-                <div class="log-ts"></div>
-                <div class="log-ln" style="width: 46%"></div>
-              </div>
-              <div class="log-row">
-                <div class="log-ts"></div>
-                <div class="log-ln" style="width: 68%"></div>
-              </div>
-              <div class="log-row">
-                <div class="log-ts"></div>
-                <div class="log-ln" style="width: 36%"></div>
-              </div>
+          <div class="terminal" id="terminal">
+            <div class="term-row">
+              <span class="term-ts">[SYSTEM]</span>
+              <span class="term-msg">Aura frontend initialized. Waiting for events...</span>
             </div>
-            <div class="ph-badge">Coming Soon</div>
-            <div class="ph-label">Hash &amp; Log Stream</div>
           </div>
         </div>
       </div>
@@ -731,7 +747,34 @@
       const statusDot = document.getElementById("statusDot");
       const statusPill = document.getElementById("statusPill");
       const statusLabel = document.getElementById("statusLabel");
+
+      const canvasContainer = document.getElementById("canvasContainer");
+      const canvas = document.getElementById("spectrogramCanvas");
+      const canvasCtx = canvas.getContext("2d");
+      const terminal = document.getElementById("terminal");
+
       let ws, recorder, stream;
+      let audioCtx, analyser, dataArray, animId;
+      let chunkCount = 0;
+      let uploadedFileDuration = 0;
+
+      /* ── Time Formatter Helper ── */
+      function formatTime(totalSeconds) {
+        if (!totalSeconds) return "00:00";
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = Math.floor(totalSeconds % 60);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`; 
+      }
+
+      /* ── Terminal Logging ── */
+      function logMsg(msg, type = "") {
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const row = document.createElement("div");
+        row.className = "term-row";
+        row.innerHTML = `<span class="term-ts">[${time}]</span><span class="term-msg ${type}">${msg}</span>`;
+        terminal.appendChild(row);
+        terminal.scrollTop = terminal.scrollHeight;
+      }
 
       /* ── Backend connectivity ── */
       function setConnected(on) {
@@ -753,10 +796,70 @@
       checkHealth();
       setInterval(checkHealth, 5000);
 
-      /* ── File pick ── */
+      /* ── Canvas Spectrogram logic ── */
+      function startVisualizer(mediaStream) {
+        canvasContainer.classList.add("active");
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256; 
+
+        const source = audioCtx.createMediaStreamSource(mediaStream);
+        source.connect(analyser);
+
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        logMsg(`[UI] Local Audio Context started at ${audioCtx.sampleRate}Hz`, "dim");
+        drawVisualizer();
+      }
+
+      function stopVisualizer() {
+        canvasContainer.classList.remove("active");
+        if (animId) cancelAnimationFrame(animId);
+        if (audioCtx) audioCtx.close();
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function drawVisualizer() {
+        animId = requestAnimationFrame(drawVisualizer);
+        analyser.getByteFrequencyData(dataArray);
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const barWidth = (canvas.width / dataArray.length) * 2.5;
+        let x = 0;
+
+        for (let i = 0; i < dataArray.length; i++) {
+          const barHeight = (dataArray[i] / 255) * canvas.height;
+          const grad = canvasCtx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+          grad.addColorStop(0, "rgba(79, 142, 247, 0.2)");
+          grad.addColorStop(1, "rgba(79, 142, 247, 1)");
+
+          canvasCtx.fillStyle = grad;
+          canvasCtx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+          x += barWidth;
+        }
+      }
+
+      /* ── File pick & Duration parsing ── */
       fileInput.addEventListener("change", () => {
-        fileNameEl.textContent = fileInput.files[0]?.name ?? "";
+        const file = fileInput.files[0];
+        if (file) {
+          fileNameEl.textContent = file.name;
+          const objectUrl = URL.createObjectURL(file);
+          const audio = new Audio(objectUrl);
+          
+          audio.onloadedmetadata = () => {
+             uploadedFileDuration = audio.duration;
+             logMsg(`[SYSTEM] Loaded: ${file.name} | Size: ${(file.size / 1024 / 1024).toFixed(2)} MB | Duration: ${uploadedFileDuration.toFixed(1)}s`, "info");
+             URL.revokeObjectURL(objectUrl);
+          };
+        } else {
+          fileNameEl.textContent = "";
+          uploadedFileDuration = 0;
+        }
       });
+
       dropZone.addEventListener("dragover", (e) => {
         e.preventDefault();
         dropZone.classList.add("drag-over");
@@ -785,53 +888,111 @@
         try {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch {
-          alert("Microphone permission denied");
+          logMsg("Microphone permission denied", "err");
           return;
         }
 
+        logMsg("[SYSTEM] Initializing microphone stream...");
         ws = new WebSocket("ws://localhost:8080/ws/audio");
+        chunkCount = 0;
+
         ws.onopen = () => {
+          logMsg("[NETWORK] WebSocket connected. Streaming chunks to backend...", "ok");
           setConnected(true);
+          
           recorder = new MediaRecorder(stream);
           recorder.ondataavailable = (e) => {
-            if (e.data.size > 0 && ws.readyState === WebSocket.OPEN)
+            if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
               ws.send(e.data);
+              chunkCount++;
+              if (chunkCount % 2 === 0) {
+                logMsg(`[NETWORK] Streamed audio chunk [${e.data.size} bytes]`, "dim");
+              }
+            }
           };
           recorder.start(1000);
+          
+          startVisualizer(stream);
           setListening(true);
-          setResult("Listening…");
+          setResult("Listening and streaming...");
         };
+
         ws.onmessage = (e) => {
           const d = JSON.parse(e.data);
-          if (d.error) setResult("Error: " + d.error, "err");
-          else if (d.found)
-            setResult(`${d.title} — ${d.artist}  ·  score ${d.score}`, "ok");
-          else setResult("No match found.");
+          const durationSeconds = (Date.now() - recordingStartTime) / 1000;
+
+          if (d.error) {
+            setResult("Error: " + d.error, "err");
+            logMsg(`[BACKEND] Recognition failed: ${d.error}`, "err");
+          }
+          else if (d.found) {
+            // Calculate Confidence Percentage
+            let confidence = 0;
+            if (d.score >= 25) confidence = 99.9;
+            else if (d.score >= 15) confidence = 85 + (d.score - 15);
+            else if (d.score >= 8) confidence = 50 + ((d.score - 8) * 5);
+            else confidence = d.score * 5;
+            confidence = Math.min(confidence, 99.9).toFixed(1);
+
+            if (d.score < 8) {
+                if (durationSeconds < 4.0) {
+                    setResult("Less data given. Please play the song for a longer time.", "warn");
+                    logMsg(`[BACKEND] Weak match (Score ${d.score}). Rejected due to short recording.`, "warn");
+                } else {
+                    setResult("Not found in database.");
+                    logMsg(`[BACKEND] Weak match (Score ${d.score}). Rejected as background noise.`, "warn");
+                }
+            } else {
+                const timestamp = formatTime(d.offset_seconds); // Converts 63.5 to "01:03"
+                
+                // Show it on the beautiful green UI box
+                setResult(`${d.title} — ${d.artist}  ·  ${confidence}% Match (at ${timestamp})`, "ok");
+                
+                // Log it to the terminal
+                logMsg(`[BACKEND] Match Found! SongID: ${d.song_id}`, "ok");
+                logMsg(`[BACKEND] Playhead sync: Matched exactly at ${timestamp} into the original track.`, "info");
+            }
+          }
+          else {
+            if (durationSeconds < 4.0) {
+                setResult("Less data given. Please play the song for a longer time.", "warn");
+                logMsg(`[BACKEND] Search complete. No match found (Recording too short).`, "warn");
+            } else {
+                setResult("Not found in database.");
+                logMsg(`[BACKEND] Search complete. No match found in database.`, "warn");
+            }
+          }
           ws.close();
         };
+
         ws.onclose = () => {
           setListening(false);
+          stopVisualizer();
           checkHealth();
         };
+
         ws.onerror = () => {
           setResult("Connection error", "err");
+          logMsg("WebSocket connection error", "err");
           setListening(false);
           setConnected(false);
         };
       };
 
       stopBtn.onclick = () => {
+        logMsg("[SYSTEM] Microphone stopped. Sending EOF signal to pipeline...");
         recorder?.stop();
         stream?.getTracks().forEach((t) => t.stop());
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "end" }));
-          setResult("Recognizing…");
+          setResult("Awaiting backend processing...");
         }
       };
 
       /* ── Upload ── */
       async function uploadSong() {
         const title = document.getElementById("songTitle").value.trim();
+        const artist = document.getElementById("songArtist").value.trim();
         const st = document.getElementById("uploadStatus");
         st.textContent = "";
         st.className = "";
@@ -839,19 +1000,25 @@
         if (!fileInput.files.length) {
           st.textContent = "Please select an audio file.";
           st.className = "err";
+          logMsg("Upload blocked: No file selected.", "err");
           return;
         }
         if (!title) {
           st.textContent = "Song title is required.";
           st.className = "err";
+          logMsg("Upload blocked: Title is required.", "err");
           return;
         }
 
         st.textContent = "Uploading…";
+        logMsg(`[SYSTEM] Starting pipeline ingestion for "${title}" by ${artist || "Unknown"}`);
+        
         const fd = new FormData();
         fd.append("song", fileInput.files[0]);
         fd.append("title", title);
-        fd.append("artist", document.getElementById("songArtist").value);
+        fd.append("artist", artist);
+
+        logMsg(`[NETWORK] Sending ${fileInput.files[0].name} to backend...`, "dim");
 
         try {
           const res = await fetch("http://localhost:8080/songs/upload", {
@@ -859,13 +1026,20 @@
             body: fd,
           });
           const body = await res.json();
-          st.textContent = res.ok
-            ? `Uploaded — ID: ${body.song_id}`
-            : "Upload failed. Please try again.";
-          st.className = res.ok ? "ok" : "err";
+          
+          if (res.ok) {
+            st.textContent = `Uploaded — ID: ${body.song_id}`;
+            st.className = "ok";
+            logMsg(`[BACKEND] Ingestion success! Stored in DB under Song ID: ${body.song_id}`, "ok");
+          } else {
+            st.textContent = "Upload failed. Please try again.";
+            st.className = "err";
+            logMsg(`[BACKEND] Ingestion failed: Server error`, "err");
+          }
         } catch {
           st.textContent = "Network error.";
           st.className = "err";
+          logMsg("[NETWORK] Fetch error during upload.", "err");
         }
       }
     </script>
