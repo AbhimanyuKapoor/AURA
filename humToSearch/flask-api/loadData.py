@@ -2,17 +2,16 @@ import requests
 import pandas as pd
 import os
 import psycopg
-from pgvector.psycopg import register_vector
+import json
 from getEmbeds import generate_embedding
 
 song_data = pd.read_csv('./song_data.csv')
 
 # Setup DB Connection and create table
 conn = psycopg.connect(os.environ["DATABASE_URL"], autocommit=True)
-conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-register_vector(conn)
+conn.execute("DROP TABLE IF EXISTS songs") # drop the old table
 conn.execute("""
-    CREATE TABLE IF NOT EXISTS songs (
+    CREATE TABLE songs (
         id SERIAL PRIMARY KEY,
         track TEXT,
         artist TEXT,
@@ -20,7 +19,7 @@ conn.execute("""
         release_date TEXT,
         album_image TEXT,
         track_url TEXT,
-        embedding VECTOR(128)
+        pitch_sequence JSONB
     )
 """)
 
@@ -47,15 +46,16 @@ for index, row in song_data.iterrows():
 
     # Generate embedding directly from the mp3 (no vocal separation needed)
     emb = generate_embedding(temp_audio_path)
-    emb_list = emb.tolist()
+    # emb is already a list of relative pitches
+    emb_json = json.dumps(emb)
 
     # Insert song with embedding into database
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO songs (track, artist, album, release_date, album_image, track_url, embedding)
+                INSERT INTO songs (track, artist, album, release_date, album_image, track_url, pitch_sequence)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (track, artist, album, release_date, album_image, track_url, emb_list))
+            """, (track, artist, album, release_date, album_image, track_url, emb_json))
         print(f"* Inserted {track} by {artist}")
     except Exception as e:
         print(f"Insert failed for {track}: {e}")

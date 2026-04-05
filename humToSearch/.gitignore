@@ -1,0 +1,43 @@
+# IDE and OS
+.DS_Store
+.vscode/
+.idea/
+
+# Root Level & Environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Python / Flask Backend
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/instance/
+**/.webassets-cache
+
+flask-api/temp/
+flask-api/*.mp3
+flask-api/*.wav
+flask-api/*.mid
+flask-api/*.midi
+flask-api/*.csv
+!flask-api/song_data.csv
+
+# Node / React Frontend
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/build/
+**/.eslintcache
+**/*.local
+
+# Logs
+**/logs/
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/pnpm-debug.log*

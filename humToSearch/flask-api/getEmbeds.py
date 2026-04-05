@@ -3,11 +3,35 @@ from basic_pitch.inference import predict
 from basic_pitch import ICASSP_2022_MODEL_PATH
 from basic_pitch.note_creation import model_output_to_notes
 
+import subprocess
+import tempfile
+
+# Convert any audio format to WAV using ffmpeg so librosa can read it reliably
+def convert_to_wav(audio_path: str) -> str:
+    """Convert audio file to WAV format using ffmpeg. Returns path to temp WAV file."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    tmp.close()
+    result = subprocess.run(
+        ['ffmpeg', '-y', '-i', audio_path, '-ar', '22050', '-ac', '1', '-f', 'wav', tmp.name],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg conversion failed: {result.stderr}")
+    return tmp.name
+
 # audio file to MIDI using the Basic Pitch model
 # takes audio and predicts musical notes present
 # takes model's output and creates MIDI formatted file
 def audio_to_midi(audio_path: str):
-    model_output, _, _ = predict(audio_path, ICASSP_2022_MODEL_PATH)
+    wav_path = convert_to_wav(audio_path)
+    try:
+        model_output, _, _ = predict(wav_path, ICASSP_2022_MODEL_PATH)
+    finally:
+        import os
+        try:
+            os.remove(wav_path)
+        except Exception:
+            pass
 
     midi, note_events = model_output_to_notes(
         output=model_output,
@@ -25,29 +49,50 @@ def audio_to_midi(audio_path: str):
     )
     return midi
 
-# Extract notes from MIDI data
+# Extract notes from MIDI data, sorted by time
 def get_pitch_vector(midi_data):
-    pitch_vector = []
+    all_notes = []
     for instrument in midi_data.instruments:
-        for note in instrument.notes:
-            pitch_vector.append(note.pitch)
+        all_notes.extend(instrument.notes)
+    
+    # Sort ALL notes from ALL instruments by start time
+    sorted_notes = sorted(all_notes, key=lambda n: n.start)
+    
+    pitch_vector = [note.pitch for note in sorted_notes]
     return pitch_vector
 
-# Function to normalize a vector - consistent scale between 0 and 1 for cosine comparisons
-def normalize(v):
-    norm = np.linalg.norm(v)
-    return v / norm if norm != 0 else v
+# Convert absolute pitches to relative sequence
+def pitches_to_relative(pitches):
+    if not pitches:
+        return []
+    relative_sequence = []
+    for i in range(1, len(pitches)):
+        interval = pitches[i] - pitches[i-1]
+        relative_sequence.append(int(interval))
+    return relative_sequence
 
-# Function to create a normalized note histogram from pitch data
-def create_note_histogram(pitches):
-    histogram, _ = np.histogram(pitches, bins=np.arange(0, 129))
-    norm_histogram = normalize(histogram)
-    return norm_histogram
-
-# Function to generate embedding from audio file
+# Function to generate pitch sequence from audio file
 def generate_embedding(temp_audio_path):
-    midi_data = audio_to_midi(temp_audio_path)
-    pitches = get_pitch_vector(midi_data)
-    emb = create_note_histogram(pitches)
-    # Cast to float32 list for pgvector compatibility (avoids smallint[] cast error)
-    return [float(x) for x in emb]
+    print(f"[DEBUG getEmbeds] Starting generate_embedding for: {temp_audio_path}")
+    try:
+        midi_data = audio_to_midi(temp_audio_path)
+        print(f"[DEBUG getEmbeds] audio_to_midi complete. Instruments found: {len(midi_data.instruments) if midi_data else 0}")
+    except Exception as e:
+        print(f"[DEBUG getEmbeds] FAILED during audio_to_midi: {e}")
+        raise e
+
+    try:
+        pitches = get_pitch_vector(midi_data)
+        print(f"[DEBUG getEmbeds] get_pitch_vector complete. Pitches count: {len(pitches)}")
+    except Exception as e:
+        print(f"[DEBUG getEmbeds] FAILED during get_pitch_vector: {e}")
+        raise e
+
+    try:
+        rel_pitches = pitches_to_relative(pitches)
+        print(f"[DEBUG getEmbeds] pitches_to_relative complete. Sequence length: {len(rel_pitches)}")
+    except Exception as e:
+        print(f"[DEBUG getEmbeds] FAILED during pitches_to_relative: {e}")
+        raise e
+
+    return rel_pitches

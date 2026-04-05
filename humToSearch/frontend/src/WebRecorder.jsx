@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Mic, Square, Shuffle, Search, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Mic, Square, Shuffle, Search, Loader2, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BarVisualizer, useAudioVolume } from './components/ui/bar-visualizer';
 
 function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
@@ -9,10 +9,12 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
   const [isClicked, setIsClicked] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [mimeType, setMimeType] = useState('audio/webm;codecs=opus');
   
   const playbackRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const abortControllerRef = useRef(null);
   const volume = useAudioVolume(isRecording ? micStream : null, { fftSize: 64, smoothingTimeConstant: 0.5 });
   const navigate = useNavigate();
 
@@ -23,7 +25,14 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
     setIsClicked(true);
     setSearchText('Searching...');
     const formData = new FormData();
-    formData.append('audioFile', blob, 'recording.mp3');
+    // Use the recorded mimeType extension or default to .webm/mp3
+    const extension = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp3') ? 'mp3' : 'webm';
+    formData.append('audioFile', blob, `recording.${extension}`);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     try {
       const url = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -31,18 +40,27 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
         method: 'POST',
         body: formData,
         mode: 'cors',
+        signal: abortControllerRef.current.signal
       });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
 
       const jsonData = await response.json();
       setIsClicked(false);
       setSearchText('Search');
       navigate('/results', { state: { trackInfo: jsonData.tracks } });
     } catch (error) {
-      console.error('Error:', error);
-      setIsClicked(false);
-      setSearchText('Search');
+      if (error.name === 'AbortError') {
+        console.log('Search aborted');
+      } else {
+        console.error('Error:', error);
+        setIsClicked(false);
+        setSearchText('Search');
+      }
     }
-  }, [audioBlob, navigate]);
+  }, [audioBlob, navigate, mimeType]);
 
   useEffect(() => {
     const setupAudio = async () => {
@@ -56,14 +74,28 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
             }
           });
           setMicStream(stream);
-          const recorder = new MediaRecorder(stream);
+
+          // Find supported MIME type
+          const types = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4',
+            'audio/wav',
+          ];
+          const supportedType = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
+          setMimeType(supportedType);
+
+          const recorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : {});
           
           recorder.ondataavailable = (e) => {
-            chunksRef.current.push(e.data);
+            if (e.data && e.data.size > 0) {
+              chunksRef.current.push(e.data);
+            }
           };
           
           recorder.onstop = () => {
-            const blob = new Blob(chunksRef.current, { type: 'audio/mp3; codecs=opus' });
+            const blob = new Blob(chunksRef.current, { type: supportedType || 'audio/webm' });
             setAudioBlob(blob);
             chunksRef.current = [];
             const audioURL = window.URL.createObjectURL(blob);
@@ -75,7 +107,7 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
           
           recorderRef.current = recorder;
         } catch (err) {
-          console.error(err);
+          console.error("Error setting up audio:", err);
         }
       }
     };
@@ -83,11 +115,27 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
   }, [handleSearch, setMicStream]);
 
   const toggleMic = () => {
-    if (!recorderRef.current) return;
+    if (!recorderRef.current) {
+       console.error("Recorder not initialized");
+       return;
+    }
     
     if (recorderRef.current.state === 'inactive') {
-      recorderRef.current.start();
-      setIsRecording(true);
+      try {
+        // Abort any pending search when starting a new recording
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
+        setIsClicked(false);
+        setSearchText('Search');
+        
+        chunksRef.current = []; // Clear chunks before starting
+        recorderRef.current.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Failed to start MediaRecorder:", err);
+      }
     } else {
       recorderRef.current.stop();
       setIsRecording(false);
@@ -150,15 +198,23 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
             }}
           ></div>
           <button 
-            onClick={toggleMic}
-            className={`relative flex items-center justify-center rounded-full border border-zinc-700/50 shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 bg-zinc-900 border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.5)] ${
-             
+            onClick={isClicked ? () => {
+              if (abortControllerRef.current) abortControllerRef.current.abort();
+              setIsClicked(false);
+              setSearchText('Search');
+            } : toggleMic}
+            className={`relative flex items-center justify-center rounded-full border border-zinc-700/50 shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 bg-zinc-900 border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.5)] group/btn ${
               isRecording 
                 ? 'w-20 h-20 my-24'
                 : 'w-48 h-48 '
             }`}
           >
-            {isRecording ? (
+            {isClicked ? (
+              <div className="relative w-full h-full flex items-center justify-center">
+                <Loader2 size={48} className="text-white animate-spin absolute group-hover/btn:opacity-0 transition-opacity" />
+                <X size={48} className="text-white opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+              </div>
+            ) : isRecording ? (
               <Square size={20} className="text-red-500 animate-pulse fill-red-500" />
             ) : (
               <Mic size={48} className="text-white" />
