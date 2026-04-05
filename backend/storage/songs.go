@@ -12,26 +12,25 @@ type Song struct {
 	Metadata map[string]any
 }
 
-func CreateSong(song Song) error {
+func CreateSong(song Song) (int, error) {
 	var metadataJSON []byte
 
 	if song.Metadata != nil {
 		var err error
 		metadataJSON, err = json.Marshal(song.Metadata)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	_, err := db.Exec(
-		`INSERT INTO songs (title, artist, metadata) 
-		 VALUES ($1, $2, $3)`,
+	var id int
+	err := db.QueryRow(
+		`INSERT INTO songs (title, artist, metadata) VALUES ($1, $2, $3) RETURNING id`,
 		song.Title,
 		song.Artist,
 		metadataJSON,
-	)
-
-	return err
+	).Scan(&id)
+	return id, err
 }
 
 func GetSongByID(id int) (*Song, error) {
