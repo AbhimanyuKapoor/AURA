@@ -7,7 +7,7 @@ import (
 
 const (
 	// FrameSize is samples per FFT window. Must be a power of 2.
-	// 4096 samples @ 22050 Hz ≈ 186ms per frame — good frequency resolution.
+	// 4096 samples @ 22050 Hz ~ 186ms per frame - good frequency resolution.
 	FrameSize = 4096
 
 	// HopSize is the step between frames (50% overlap).
@@ -66,7 +66,7 @@ func fft(x []complex128) []complex128 {
 //  4. Take magnitude (|complex|) of positive frequencies only
 //
 // Returns: spectrogram[timeFrame][freqBin] = magnitude
-// Frequency of bin k = k * SampleRate / FrameSize  (e.g. bin 100 ≈ 538 Hz)
+// Frequency of bin k = k * SampleRate / FrameSize  (e.g. bin 100 ~ 538 Hz)
 func ComputeSpectrogram(samples []float64) [][]float64 {
 	var spectrogram [][]float64
 
@@ -86,7 +86,7 @@ func ComputeSpectrogram(samples []float64) [][]float64 {
 
 		spectrum := fft(cx)
 
-		// Only keep first half — the second half mirrors it (Nyquist theorem)
+		// Only keep first half - the second half mirrors it (Nyquist theorem)
 		mags := make([]float64, FrameSize/2)
 		for i := 0; i < FrameSize/2; i++ {
 			mags[i] = cmplx.Abs(spectrum[i])

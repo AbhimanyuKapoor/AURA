@@ -10,7 +10,7 @@ const (
 	TargetZoneDTMin = 2
 
 	// TargetZoneDT is the maximum frame gap between anchor and target peaks.
-	// 30 frames × (2048 hop / 22050 Hz) ≈ 2.8 seconds lookahead window.
+	// 30 frames × (2048 hop / 22050 Hz) ~ 2.8 seconds lookahead window.
 	TargetZoneDT = 30
 )
 

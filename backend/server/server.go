@@ -31,6 +31,7 @@ func StartServer() error {
 
 	// Song ingestion (file upload)
 	mux.HandleFunc("POST /songs/upload", handlers.UploadSong)
+	mux.HandleFunc("POST /songs/upload/stream", handlers.UploadSongStream)
 
 	// Song recognition
 	mux.HandleFunc("POST /recognize", handlers.RecognizeHandler)

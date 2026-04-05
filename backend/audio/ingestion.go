@@ -10,6 +10,14 @@ import (
 // RunIngestionPipeline processes an audio file and returns its fingerprint hashes.
 // The caller (UploadSong handler) is responsible for storing them in the DB.
 func RunIngestionPipeline(rawPath string) ([]fingerprint.FingerprintHash, error) {
+	// print to stdout for non-streaming callers by default
+	reporter := Reportf(func(format string, args ...any) {
+		fmt.Printf(format+"\n", args...)
+	})
+	return RunIngestionPipelineWithReporter(rawPath, reporter)
+}
+
+func RunIngestionPipelineWithReporter(rawPath string, reporter Reportf) ([]fingerprint.FingerprintHash, error) {
 	// FFmpeg check for unsupported file type
 	cmd := exec.Command("ffmpeg", "-v", "error", "-i", rawPath, "-f", "null", "-")
 	if err := cmd.Run(); err != nil {
@@ -23,7 +31,7 @@ func RunIngestionPipeline(rawPath string) ([]fingerprint.FingerprintHash, error)
 	}
 	defer os.Remove(normalizedPath)
 
-	fmt.Printf("[ingestion] normalized: duration=%.2fs sampleRate=%dHz\n",
+	reporter.Printf("[ingestion] normalized: duration=%.2fs sampleRate=%dHz",
 		meta.Duration, meta.SampleRate)
 
 	// Read WAV -> float64 samples -> spectrogram
@@ -33,19 +41,20 @@ func RunIngestionPipeline(rawPath string) ([]fingerprint.FingerprintHash, error)
 	}
 
 	spectrogram := ComputeSpectrogram(wavData.Samples)
-	fmt.Printf("[ingestion] spectrogram: %d frames\n", len(spectrogram))
+	reporter.Printf("[ingestion] spectrogram: %d frames", len(spectrogram))
 
 	// Extract peaks from spectrogram
 	peaks := fingerprint.ExtractPeaks(spectrogram)
-	fmt.Printf("[ingestion] peaks: %d extracted\n", len(peaks))
+	reporter.Printf("[ingestion] peaks: %d extracted", len(peaks))
 
 	if len(peaks) == 0 {
-		return nil, fmt.Errorf("ingestion: no peaks found — audio may be silent or too short")
+		reporter.Printf("[ingestion] no peaks found - audio may be silent or too short")
+		return nil, fmt.Errorf("ingestion: no peaks found - audio may be silent or too short")
 	}
 
 	// Generate hashes from peaks and return them
 	hashes := fingerprint.GenerateHashes(peaks)
-	fmt.Printf("[ingestion] hashes: %d generated\n", len(hashes))
+	reporter.Printf("[ingestion] hashes: %d generated", len(hashes))
 
 	return hashes, nil
 }

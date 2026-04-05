@@ -12,7 +12,7 @@ const (
 )
 
 // frequencyBands splits the audible range into zones.
-// We pick ONE dominant peak per band per frame — this ensures we capture
+// We pick ONE dominant peak per band per frame - this ensures we capture
 // energy across the full spectrum, not just the loudest frequency.
 // This mirrors the approach in Wang's original Shazam paper.
 var frequencyBands = []struct{ Low, High int }{
@@ -29,7 +29,7 @@ var frequencyBands = []struct{ Low, High int }{
 type Peak struct {
 	TimeFrame int     // which FFT frame (time axis)
 	FreqBin   int     // which frequency bin (frequency axis)
-	Magnitude float64 // strength — used for threshold filtering only
+	Magnitude float64 // strength - used for threshold filtering only
 }
 
 // freqToIndex converts a frequency in Hz to the nearest FFT bin index.
@@ -40,7 +40,7 @@ func freqToIndex(hz int) int {
 
 // ExtractPeaks scans every time frame of the spectrogram and picks the
 // loudest frequency bin within each band. Weak peaks (below MagnitudeThreshold)
-// are discarded — they're likely background noise or silence.
+// are discarded - they're likely background noise or silence.
 //
 // Output is a list of (time, frequency) constellation points, sorted by time.
 func ExtractPeaks(spectrogram Spectrogram) []Peak {
@@ -69,7 +69,7 @@ func ExtractPeaks(spectrogram Spectrogram) []Peak {
 				}
 			}
 
-			// Ignore peaks that are too quiet — they're noise
+			// Ignore peaks that are too quiet - they're noise
 			if maxMag < MagnitudeThreshold {
 				continue
 			}

@@ -13,6 +13,14 @@ import (
 // Returns nil when audio is valid but no match was found.
 // Returns an error only if the pipeline itself fails.
 func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
+	// print to stdout for non-WS callers by default
+	reporter := Reportf(func(format string, args ...any) {
+		fmt.Printf(format+"\n", args...)
+	})
+	return RunRecognitionPipelineWithReporter(rawPath, reporter)
+}
+
+func RunRecognitionPipelineWithReporter(rawPath string, reporter Reportf) (*fingerprint.MatchResult, error) {
 	// Normalize -> mono, 22050Hz, 16-bit WAV
 	normalizedPath, meta, err := NormalizeAudio(rawPath, "tmp")
 	if err != nil {
@@ -20,7 +28,7 @@ func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
 	}
 	defer os.Remove(normalizedPath)
 
-	fmt.Printf("[recognition] normalized: duration=%.2fs sampleRate=%dHz\n",
+	reporter.Printf("[recognition] normalized: duration=%.2fs sampleRate=%dHz",
 		meta.Duration, meta.SampleRate)
 
 	// Read WAV -> float64 samples -> spectrogram
@@ -30,19 +38,20 @@ func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
 	}
 
 	spectrogram := ComputeSpectrogram(wavData.Samples)
+	reporter.Printf("[recognition] spectrogram: %d frames", len(spectrogram))
 
 	// Extract peaks from spectrogram
 	peaks := fingerprint.ExtractPeaks(spectrogram)
-	fmt.Printf("[recognition] peaks: %d extracted\n", len(peaks))
+	reporter.Printf("[recognition] peaks: %d extracted", len(peaks))
 
 	if len(peaks) == 0 {
-		fmt.Println("[recognition] no peaks found - audio too quiet or too short")
-		return nil, nil
+		reporter.Printf("[recognition] no peaks found - audio too quiet or too short")
+		return nil, fmt.Errorf("recognition: no peaks found - audio too quiet or too short")
 	}
 
 	// Generate hashes from peaks + match from DB
 	hashes := fingerprint.GenerateHashes(peaks)
-	fmt.Printf("[recognition] hashes: %d generated, querying DB...\n", len(hashes))
+	reporter.Printf("[recognition] hashes: %d generated, querying DB...", len(hashes))
 
 	result, err := fingerprint.ScoreMatches(hashes, storage.LookupHashes)
 	if err != nil {
@@ -50,9 +59,9 @@ func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
 	}
 
 	if result == nil {
-		fmt.Println("[recognition] no match found")
+		reporter.Printf("[recognition] no match found")
 	} else {
-		fmt.Printf("[recognition] matched song #%d with score %d\n",
+		reporter.Printf("[recognition] matched song #%d with score %d",
 			result.SongID, result.Score)
 	}
 

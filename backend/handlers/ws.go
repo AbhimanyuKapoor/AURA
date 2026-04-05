@@ -4,6 +4,7 @@ import (
 	"aura/audio"
 	"aura/storage"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -21,6 +22,10 @@ type wsIncoming struct {
 }
 
 type wsResult struct {
+	// Log messages (Type == "log")
+	Type    string `json:"type"`
+	Message string `json:"message,omitempty"`
+
 	Found  bool   `json:"found"`
 	SongID int    `json:"song_id,omitempty"`
 	Title  string `json:"title,omitempty"`
@@ -90,24 +95,28 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 
 done:
 	log.Println("AudioWS: received end signal, running recognition...")
+	_ = conn.WriteJSON(wsResult{Type: "log", Message: "[recognition] received end signal, running recognition..."})
 
 	if err := tmpFile.Close(); err != nil {
 		log.Printf("AudioWS: close temp: %v", err)
-		conn.WriteJSON(wsResult{Error: "server error"})
+		_ = conn.WriteJSON(wsResult{Type: "result", Error: "server error"})
 		return
 	}
 	tmpFile = nil
 
 	// Run recognition pipeline
-	result, err := audio.RunRecognitionPipeline(rawPath)
+	reporter := audio.Reportf(func(format string, args ...any) {
+		_ = conn.WriteJSON(wsResult{Type: "log", Message: fmt.Sprintf(format, args...)})
+	})
+	result, err := audio.RunRecognitionPipelineWithReporter(rawPath, reporter)
 	if err != nil {
 		log.Printf("AudioWS: recognition failed: %v", err)
-		conn.WriteJSON(wsResult{Error: "recognition failed"})
+		_ = conn.WriteJSON(wsResult{Type: "result", Error: "recognition failed"})
 		return
 	}
 
 	// Build and send response
-	resp := wsResult{}
+	resp := wsResult{Type: "result"}
 	if result == nil {
 		resp.Found = false
 	} else {
