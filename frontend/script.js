@@ -18,6 +18,12 @@ const statusLabel = document.getElementById("statusLabel");
 const logsEmpty = document.getElementById("logsEmpty");
 const logsStream = document.getElementById("logsStream");
 
+// Spectrogram globals
+const specCanvas = document.getElementById("spectrogramCanvas");
+const specCtx = specCanvas?.getContext("2d");
+
+let audioCtx, analyser, dataArray, animId;
+let tempCanvas, tempCtx;
 let ws, recorder, stream;
 
 // Backend health
@@ -88,6 +94,56 @@ function appendLogLine(text) {
     logsStream.scrollTop = logsStream.scrollHeight;
 }
 
+function drawSpectrogram() {
+    animId = requestAnimationFrame(drawSpectrogram);
+    analyser.getByteFrequencyData(dataArray);
+
+    // 1. Copy current canvas to the invisible temp canvas
+    tempCtx.drawImage(specCanvas, 0, 0, specCanvas.width, specCanvas.height);
+
+    // 2. Paste it back shifted 2 pixels to the left to create the scroll effect
+    specCtx.drawImage(tempCanvas, 0, 0, specCanvas.width, specCanvas.height, -2, 0, specCanvas.width, specCanvas.height);
+
+    // 3. Draw the new audio data on the far right edge
+    const sliceWidth = 2;
+    const rightEdge = specCanvas.width - sliceWidth;
+    
+    // Only use the bottom 60% of the frequency bins to ignore the empty high-end
+    const usefulBins = Math.floor(dataArray.length * 0.6);
+    const binHeight = specCanvas.height / usefulBins; 
+
+    for (let i = 0; i < usefulBins; i++) {
+        const value = dataArray[i]; // 0 to 255
+        
+        // Invert Y so bass is at bottom, treble at top
+        const y = specCanvas.height - (i * binHeight) - binHeight;
+
+        // Custom Aura Heatmap colors (Dark Blue -> Cyan -> Yellow -> Red)
+        let r = 0, g = 0, b = 0;
+        if (value < 64) {
+            b = value * 4; 
+        } else if (value < 128) {
+            b = 255;
+            g = (value - 64) * 4; 
+        } else if (value < 192) {
+            g = 255;
+            b = 255 - ((value - 128) * 4);
+            r = (value - 128) * 4; 
+        } else {
+            r = 255;
+            g = 255 - ((value - 192) * 4); 
+        }
+
+        // Make background pitch black if it's completely silent
+        if (value === 0) {
+            r = 11; g = 13; b = 17; // Matches your var(--bg) hex #0b0d11
+        }
+
+        specCtx.fillStyle = `rgb(${r},${g},${b})`;
+        specCtx.fillRect(rightEdge, y, sliceWidth, binHeight);
+    }
+}
+
 // WebSocket
 startBtn.onclick = async () => {
     try {
@@ -99,6 +155,33 @@ startBtn.onclick = async () => {
 
     clearLogs();
 
+    // Match the HTML canvas size to its CSS size to prevent blurring
+    const rect = specCanvas.parentElement.getBoundingClientRect();
+    specCanvas.width = rect.width;
+    specCanvas.height = rect.height;
+
+    // Setup offscreen canvas for the scrolling effect
+    tempCanvas = document.createElement('canvas');
+    tempCanvas.width = specCanvas.width;
+    tempCanvas.height = specCanvas.height;
+    tempCtx = tempCanvas.getContext('2d');
+
+    // Fill initial background with your dark theme color
+    specCtx.fillStyle = '#0b0d11'; 
+    specCtx.fillRect(0, 0, specCanvas.width, specCanvas.height);
+
+    // Boot Web Audio API
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512; // Gives 256 frequency bins vertically
+    analyser.smoothingTimeConstant = 0.0; // Raw instant data
+
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    drawSpectrogram(); // Start the animation loop
+    
     ws = new WebSocket("ws://localhost:8080/ws/audio");
     ws.onopen = () => {
         setConnected(true);
@@ -149,6 +232,12 @@ startBtn.onclick = async () => {
 };
 
 stopBtn.onclick = () => {
+
+    // --- STOP SPECTROGRAM ---
+    cancelAnimationFrame(animId);
+    if (audioCtx) audioCtx.close();
+    // ------------------------
+
     recorder?.stop();
     stream?.getTracks().forEach((t) => t.stop());
     if (ws?.readyState === WebSocket.OPEN) {
