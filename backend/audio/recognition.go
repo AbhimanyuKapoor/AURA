@@ -12,7 +12,7 @@ import (
 //
 // Returns nil when audio is valid but no match was found.
 // Returns an error only if the pipeline itself fails.
-func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
+func RunRecognitionPipeline(rawPath string) ([]fingerprint.MatchResult, error) {
 	// print to stdout for non-WS callers by default
 	reporter := Reportf(func(format string, args ...any) {
 		fmt.Printf(format+"\n", args...)
@@ -20,7 +20,7 @@ func RunRecognitionPipeline(rawPath string) (*fingerprint.MatchResult, error) {
 	return RunRecognitionPipelineWithReporter(rawPath, reporter)
 }
 
-func RunRecognitionPipelineWithReporter(rawPath string, reporter Reportf) (*fingerprint.MatchResult, error) {
+func RunRecognitionPipelineWithReporter(rawPath string, reporter Reportf) ([]fingerprint.MatchResult, error) {
 	// Normalize -> mono, 22050Hz, 16-bit WAV
 	normalizedPath, meta, err := NormalizeAudio(rawPath, "tmp")
 	if err != nil {
@@ -58,11 +58,11 @@ func RunRecognitionPipelineWithReporter(rawPath string, reporter Reportf) (*fing
 		return nil, fmt.Errorf("recognition: score matches: %w", err)
 	}
 
-	if result == nil {
+	if len(result) == 0 {
 		reporter.Printf("[recognition] no match found")
 	} else {
 		reporter.Printf("[recognition] matched song #%d with score %d",
-			result.SongID, result.Score)
+			result[0].SongID, result[0].Score)
 	}
 
 	return result, nil

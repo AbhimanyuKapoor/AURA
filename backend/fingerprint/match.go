@@ -12,7 +12,7 @@ type MatchResult struct {
 	Score  int // peak histogram count - higher means more confident match
 }
 
-// ScoreMatches finds the best-matching song using time-coherence scoring.
+// ScoreMatches finds the best-matching songs using time-coherence scoring.
 //
 // Why this works (the key insight from Wang's paper):
 //   - For the correct song, every matching hash pair will have the same
@@ -24,10 +24,11 @@ type MatchResult struct {
 // The song with the highest spike in that histogram is the match.
 //
 // lookupFn is a batch DB query - we pass all hashes at once to avoid N+1 queries.
+// Returns up to 5 top matches sorted by score descending.
 func ScoreMatches(
 	queryHashes []FingerprintHash,
 	lookupFn func([]int64) (map[int64][]DBMatch, error),
-) (*MatchResult, error) {
+) ([]MatchResult, error) {
 
 	if len(queryHashes) == 0 {
 		return nil, nil
@@ -78,25 +79,41 @@ func ScoreMatches(
 		}
 	}
 
-	// Find the (songID, timeDelta) pair with the highest count
-	bestSongID := -1
-	bestScore := 0
-
+	// Find the highest score for each song
+	bestScoresBySong := make(map[int]int)
 	for songID, deltas := range histogram {
+		best := 0
 		for _, count := range deltas {
-			if count > bestScore {
-				bestScore = count
-				bestSongID = songID
+			if count > best {
+				best = count
+			}
+		}
+		if best > 0 {
+			bestScoresBySong[songID] = best
+		}
+	}
+
+	if len(bestScoresBySong) == 0 {
+		return nil, nil
+	}
+
+	var results []MatchResult
+	for id, score := range bestScoresBySong {
+		results = append(results, MatchResult{SongID: id, Score: score})
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(results); i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[i].Score {
+				results[i], results[j] = results[j], results[i]
 			}
 		}
 	}
 
-	if bestSongID == -1 {
-		return nil, nil
+	if len(results) > 5 {
+		results = results[:5]
 	}
 
-	return &MatchResult{
-		SongID: bestSongID,
-		Score:  bestScore,
-	}, nil
+	return results, nil
 }

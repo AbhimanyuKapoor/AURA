@@ -22,12 +22,22 @@ type wsIncoming struct {
 	Type string `json:"type"`
 }
 
+type WSMatch struct {
+	SongID int    `json:"song_id"`
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+	Score  int    `json:"score"`
+}
+
 type wsResult struct {
 	// Log messages (Type == "log")
 	Type    string `json:"type"`
 	Message string `json:"message,omitempty"`
 
-	Found  bool   `json:"found"`
+	Found   bool      `json:"found"`
+	Matches []WSMatch `json:"matches,omitempty"`
+	
+	// Legacy fields for backward compatibility, although we will use Matches.
 	SongID int    `json:"song_id,omitempty"`
 	Title  string `json:"title,omitempty"`
 	Artist string `json:"artist,omitempty"`
@@ -96,8 +106,8 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 			}
 			chunkCount++
 
-			// Trigger continuous recognition in background every 3 seconds (3 chunks)
-			if chunkCount > 0 && chunkCount%3 == 0 {
+			// Trigger continuous recognition in background every 5 seconds (5 chunks)
+			if chunkCount > 0 && chunkCount%5 == 0 {
 				if searchMu.TryLock() {
 					go func(path string) {
 						defer searchMu.Unlock()
@@ -107,14 +117,32 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 						})
 
 						res, err := audio.RunRecognitionPipelineWithReporter(path, reporter)
-						if err == nil && res != nil {
-							// Match found!
-							resp := wsResult{Type: "result", Found: true, SongID: res.SongID, Score: res.Score}
-							if song, err := storage.GetSongByID(res.SongID); err == nil {
-								resp.Title = song.Title
-								resp.Artist = song.Artist
+						if err == nil && len(res) > 0 && res[0].Score >= 45 {
+							// Match found! Only trigger if score >= 45 to avoid noise
+							resp := wsResult{
+								Type:   "result",
+								Found:  true,
+								SongID: res[0].SongID,
+								Score:  res[0].Score,
 							}
-							log.Printf("AudioWS (continuous): found match %q", resp.Title)
+							
+							for _, r := range res {
+								if song, err := storage.GetSongByID(r.SongID); err == nil {
+									resp.Matches = append(resp.Matches, WSMatch{
+										SongID: r.SongID,
+										Title:  song.Title,
+										Artist: song.Artist,
+										Score:  r.Score,
+									})
+								}
+							}
+
+							if len(resp.Matches) > 0 {
+								resp.Title = resp.Matches[0].Title
+								resp.Artist = resp.Matches[0].Artist
+							}
+
+							log.Printf("AudioWS (continuous): found match %q with score %d", resp.Title, resp.Score)
 							_ = writeJSON(resp)
 						}
 					}(rawPath)
@@ -158,16 +186,28 @@ done:
 
 	// Build and send response
 	resp := wsResult{Type: "result"}
-	if result == nil {
+	if len(result) == 0 || result[0].Score < 45 {
 		resp.Found = false
 	} else {
 		resp.Found = true
-		resp.SongID = result.SongID
-		resp.Score = result.Score
+		resp.SongID = result[0].SongID
+		resp.Score = result[0].Score
 
-		if song, err := storage.GetSongByID(result.SongID); err == nil {
-			resp.Title = song.Title
-			resp.Artist = song.Artist
+		for _, r := range result {
+			if r.Score < 45 { continue } // Only include high-quality matches in the list
+			if song, err := storage.GetSongByID(r.SongID); err == nil {
+				resp.Matches = append(resp.Matches, WSMatch{
+					SongID: r.SongID,
+					Title:  song.Title,
+					Artist: song.Artist,
+					Score:  r.Score,
+				})
+			}
+		}
+
+		if len(resp.Matches) > 0 {
+			resp.Title = resp.Matches[0].Title
+			resp.Artist = resp.Matches[0].Artist
 		}
 	}
 

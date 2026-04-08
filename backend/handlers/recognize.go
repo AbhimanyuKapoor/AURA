@@ -73,17 +73,17 @@ func RecognizeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	resp := RecognizeResponse{}
-	if result == nil {
+	if len(result) == 0 {
 		resp.Found = false
 		json.NewEncoder(w).Encode(resp)
 		return
 	}
 
 	resp.Found = true
-	resp.SongID = result.SongID
-	resp.Score = result.Score
+	resp.SongID = result[0].SongID
+	resp.Score = result[0].Score
 
-	song, err := storage.GetSongByID(result.SongID)
+	song, err := storage.GetSongByID(result[0].SongID)
 	if err == nil {
 		resp.Title = song.Title
 		resp.Artist = song.Artist

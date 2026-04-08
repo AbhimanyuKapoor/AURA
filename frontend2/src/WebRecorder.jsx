@@ -133,8 +133,13 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.stop();
+      }
+      setIsRecording(false);
+      setIsProcessing(false);
     };
-  }, [setMicStream, addLog]);
+  }, [setMicStream, addLog, setIsRecording]);
 
   const toggleMic = () => {
     if (!recorderRef.current) {
@@ -173,18 +178,29 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
               setIsProcessing(false);
               addLog('No match found in database', 'warn');
             } else {
-              const trackData = {
-                track: d.title,
-                artist: d.artist,
-                confidence: Math.min((d.score * 5), 99.9).toFixed(1),
-                score: d.score,
-              };
+              const resultsArray = d.matches && d.matches.length > 0 
+                ? d.matches.map(m => ({
+                    track: m.title,
+                    artist: m.artist,
+                    confidence: Math.min((m.score * 5), 99.9).toFixed(1),
+                    score: m.score
+                  }))
+                : [{
+                    track: d.title,
+                    artist: d.artist,
+                    confidence: Math.min((d.score * 5), 99.9).toFixed(1),
+                    score: d.score,
+                  }];
               
               setIsProcessing(false);
+              setIsRecording(false);
+              if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+                recorderRef.current.stop();
+              }
               setStatusText('Match found!');
               addLog(`Match: ${d.title} by ${d.artist} (score: ${d.score})`, 'success');
               wsRef.current.close();
-              navigate('/results', { state: { trackInfo: [trackData] } });
+              navigate('/results', { state: { trackInfo: resultsArray } });
             }
             return;
           }

@@ -24,12 +24,18 @@ function Results() {
   const otherMatches = trackInfo.slice(1, 5);
 
   return (
-    <div className="flex flex-col items-center w-full min-h-screen pt-12 pb-32 px-4 relative z-10 animate-in fade-in zoom-in-95 duration-700">
+      <div 
+        onClick={handleBackClick}
+        className="flex flex-col items-center w-full min-h-[100dvh] pt-12 pb-32 px-4 relative z-10 animate-in fade-in zoom-in-95 duration-700 cursor-pointer"
+      >
+        
+        {/* Inner container wrapper */}
+        <div className="flex flex-col items-center w-full h-full cursor-default">
       
       {/* Header bar */}
       <div className="absolute top-0 left-0 w-full flex items-center justify-between p-6 z-30">
         <button 
-          onClick={handleBackClick} 
+          onClick={(e) => { e.stopPropagation(); handleBackClick(); }} 
           className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 backdrop-blur-sm"
         >
           <ArrowLeft size={16} />
@@ -80,9 +86,12 @@ function Results() {
       </div>
 
       {/* Audio Player */}
-      <div className="w-full max-w-md px-4 mt-8">
+      <div 
+        className="w-full max-w-md px-4 mt-8"
+        onClick={(e) => e.stopPropagation()} // Prevent nav when interacting with audio
+      >
         <audio 
-          className="w-full h-12 rounded-full bg-zinc-950/80 shadow-inner border border-white/10 backdrop-blur-md [&::-webkit-media-controls-panel]:bg-transparent [&::-webkit-media-controls-current-time-display]:text-zinc-300 [&::-webkit-media-controls-time-remaining-display]:text-zinc-300 drop-shadow-2xl" 
+          className="w-full h-12 rounded-full bg-zinc-950/80 shadow-inner border border-white/10 backdrop-blur-md [&::-webkit-media-controls-panel]:bg-transparent [&::-webkit-media-controls-current-time-display]:text-zinc-300 [&::-webkit-media-controls-time-remaining-display]:text-zinc-300 drop-shadow-2xl cursor-default" 
           controls 
           src={topMatch.track_url} 
         />
@@ -112,7 +121,8 @@ function Results() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </div>
   );
 }
 
