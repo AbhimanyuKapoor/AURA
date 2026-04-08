@@ -6,10 +6,10 @@ import (
 )
 
 type Song struct {
-	ID       int
-	Title    string
-	Artist   string
-	Metadata map[string]any
+	ID       int            `json:"id"`
+	Title    string         `json:"title"`
+	Artist   string         `json:"artist"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 func CreateSong(song Song) (int, error) {
