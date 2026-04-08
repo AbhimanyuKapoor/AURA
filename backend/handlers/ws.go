@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -68,6 +69,16 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("AudioWS: recording started -> %s", rawPath)
 
+	var connMu sync.Mutex
+	writeJSON := func(v interface{}) error {
+		connMu.Lock()
+		defer connMu.Unlock()
+		return conn.WriteJSON(v)
+	}
+
+	var searchMu sync.Mutex
+	chunkCount := 0
+
 	// Receive audio chunks until client sends "end"
 	for {
 		msgType, data, err := conn.ReadMessage()
@@ -83,6 +94,32 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 				log.Printf("AudioWS: write chunk: %v", err)
 				return
 			}
+			chunkCount++
+
+			// Trigger continuous recognition in background every 3 seconds (3 chunks)
+			if chunkCount > 0 && chunkCount%3 == 0 {
+				if searchMu.TryLock() {
+					go func(path string) {
+						defer searchMu.Unlock()
+
+						reporter := audio.Reportf(func(format string, args ...any) {
+							_ = writeJSON(wsResult{Type: "log", Message: fmt.Sprintf(format, args...)})
+						})
+
+						res, err := audio.RunRecognitionPipelineWithReporter(path, reporter)
+						if err == nil && res != nil {
+							// Match found!
+							resp := wsResult{Type: "result", Found: true, SongID: res.SongID, Score: res.Score}
+							if song, err := storage.GetSongByID(res.SongID); err == nil {
+								resp.Title = song.Title
+								resp.Artist = song.Artist
+							}
+							log.Printf("AudioWS (continuous): found match %q", resp.Title)
+							_ = writeJSON(resp)
+						}
+					}(rawPath)
+				}
+			}
 
 		case websocket.TextMessage:
 			// Control message: check for "end" signal
@@ -94,24 +131,28 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 done:
-	log.Println("AudioWS: received end signal, running recognition...")
-	_ = conn.WriteJSON(wsResult{Type: "log", Message: "[recognition] received end signal, running recognition..."})
+	// Await any background searches to finish using Lock
+	searchMu.Lock()
+	defer searchMu.Unlock()
+
+	log.Println("AudioWS: received end signal, running final recognition...")
+	_ = writeJSON(wsResult{Type: "log", Message: "[recognition] finalizing search..."})
 
 	if err := tmpFile.Close(); err != nil {
 		log.Printf("AudioWS: close temp: %v", err)
-		_ = conn.WriteJSON(wsResult{Type: "result", Error: "server error"})
+		_ = writeJSON(wsResult{Type: "result", Error: "server error"})
 		return
 	}
 	tmpFile = nil
 
-	// Run recognition pipeline
+	// Run recognition pipeline one last time
 	reporter := audio.Reportf(func(format string, args ...any) {
-		_ = conn.WriteJSON(wsResult{Type: "log", Message: fmt.Sprintf(format, args...)})
+		_ = writeJSON(wsResult{Type: "log", Message: fmt.Sprintf(format, args...)})
 	})
 	result, err := audio.RunRecognitionPipelineWithReporter(rawPath, reporter)
 	if err != nil {
-		log.Printf("AudioWS: recognition failed: %v", err)
-		_ = conn.WriteJSON(wsResult{Type: "result", Error: "recognition failed"})
+		log.Printf("AudioWS: final recognition failed: %v", err)
+		_ = writeJSON(wsResult{Type: "result", Error: "recognition failed"})
 		return
 	}
 
@@ -130,9 +171,8 @@ done:
 		}
 	}
 
-	if err := conn.WriteJSON(resp); err != nil {
+	if err := writeJSON(resp); err != nil {
 		log.Printf("AudioWS: send result: %v", err)
 	}
-	log.Printf("AudioWS: done - found=%v title=%q score=%d",
-		resp.Found, resp.Title, resp.Score)
+	log.Printf("AudioWS: done - found=%v title=%q score=%d", resp.Found, resp.Title, resp.Score)
 }
