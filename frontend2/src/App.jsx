@@ -7,23 +7,14 @@ import Showcase from "./Showcase";
 
 import SongList from "./SongList";
 import Diagnostics from "./Diagnostics";
-import Visualisation from "./Visualisation";
 import HowItWorks from "./HowItWorks";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Mic,
-  Library,
-  Activity,
-  Waves,
-  BookOpen,
-} from "lucide-react";
+import { Mic, Library, Activity, Waves, BookOpen } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/", icon: Mic, label: "Hum" },
   { path: "/library", icon: Library, label: "Library" },
-
-  // { path: "/visualisation", icon: Waves, label: "Visualise" },
   { path: "/how-it-works", icon: BookOpen, label: "Algorithm" },
   { path: "/status", icon: Activity, label: "Status" },
 ];
@@ -32,7 +23,7 @@ function HamburgerMenu() {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const hiddenRoutes = ["/showcase", ];
+  const hiddenRoutes = ["/showcase"];
   if (hiddenRoutes.includes(location.pathname)) return null;
 
   return (
@@ -117,16 +108,12 @@ function App() {
   const [micStream, setMicStream] = useState(null);
   const location = useLocation();
 
-  useEffect(() => {
-    console.log(location.pathname);
-  }, [location.pathname]);
-
   const navigate = useNavigate();
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-zinc-900 to-zinc-950 text-zinc-100 font-sans relative selection:bg-white/30">
       <AudioVisualizer stream={micStream} isRecording={isRecording} />
-      {(
+      {
         <div className="w-full h-full overflow-y-auto relative z-10 custom-scrollbar">
           <div className="absolute inset-0 z-50 pointer-events-none flex items-start justify-start p-0">
             <motion.div
@@ -181,22 +168,13 @@ function App() {
                 <Route path="/results" element={<Results />} />
                 <Route path="/showcase" element={<Showcase />} />
                 <Route path="/library" element={<SongList />} />
-
-                {/* <Route path="/visualisation" element={<Visualisation />} /> */}
                 <Route path="/how-it-works" element={<HowItWorks />} />
                 <Route path="/status" element={<Diagnostics />} />
               </Routes>
             </AnimatePresence>
           </div>
         </div>
-      )}
-
-      {/* {location.pathname === "/how-it-works" && (
-        <div className="w-full h-full relative z-10">
-          <HowItWorks />
-        </div>
-      )} */}
-
+      }
       <HamburgerMenu />
     </div>
   );

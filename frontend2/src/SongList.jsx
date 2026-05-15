@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Music2, Disc3, RefreshCw, Trash2, Plus, Upload, Music, CheckCircle, XCircle, Loader2, CloudUpload, X, PlayIcon, HardDrive } from 'lucide-react';
+import { Search, Music2, Disc3, RefreshCw, Trash2, Plus, Upload, Music, CheckCircle, XCircle, Loader2, CloudUpload, X, PlayIcon, HardDrive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GO_API = import.meta.env.VITE_GO_API_URL || 'http://localhost:8080';
@@ -80,7 +80,6 @@ function AddSongDialog({ open, onClose, onSongAdded }) {
       formData.append('artist', artist.trim());
       
       await handleStreamFetch(`${GO_API}/songs/upload/stream`, formData);
-
     } else {
       if (!ytUrl.trim()) {
         setMessage('YouTube URL is required.');
@@ -162,7 +161,6 @@ function AddSongDialog({ open, onClose, onSongAdded }) {
       
       setStatus('success');
       setMessage(mode === 'youtube' ? 'YouTube ingestion complete!' : 'Song added!');
-      
     } catch (err) {
       addLog(`✗ Processing failed: ${err instanceof Error ? err.message : String(err)}`, 'muted');
       setStatus('error');
@@ -234,7 +232,6 @@ function AddSongDialog({ open, onClose, onSongAdded }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  
                   {mode === 'file' ? (
                     <>
                       {/* Drop Zone */}
@@ -412,16 +409,6 @@ function SongList() {
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen pt-24 pb-32 px-4 relative z-10">
-      {/* Header */}
-      <div className="absolute top-0 left-0 w-full flex items-center p-6 z-30">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 backdrop-blur-sm"
-        >
-          <ArrowLeft size={16} />
-        </button>
-      </div>
-
       <motion.div
         className="w-full max-w-2xl mt-4"
         initial={{ opacity: 0, y: 20 }}

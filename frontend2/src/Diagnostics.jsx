@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Activity, Wifi, WifiOff, RefreshCw, Terminal } from 'lucide-react';
+import { Activity, Wifi, WifiOff, RefreshCw, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GO_API = import.meta.env.VITE_GO_API_URL || 'http://localhost:8080';
@@ -110,16 +110,6 @@ function Diagnostics() {
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen pt-24 pb-32 px-4 relative z-10">
-      {/* Header */}
-      <div className="absolute top-0 left-0 w-full flex items-center p-6 z-30">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 backdrop-blur-sm"
-        >
-          <ArrowLeft size={16} />
-        </button>
-      </div>
-
       <motion.div
         className="w-full max-w-2xl mt-4 space-y-6"
         initial={{ opacity: 0, y: 20 }}

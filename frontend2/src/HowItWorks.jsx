@@ -86,8 +86,8 @@ const WaveformVisual = ({ active }) => (
       className="relative z-10 flex-[2] bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 flex flex-col gap-1 min-h-0"
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Stage 1 — Raw Stereo Input</span>
-        <span className="text-[9px] text-zinc-600 font-mono">44,100 Hz · 16-bit · 2ch</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Stage 1 — Raw Audio Input</span>
+        <span className="text-[9px] text-zinc-600 font-mono">Format varies by source</span>
       </div>
       <svg className="flex-1 w-full" viewBox="0 0 800 120" preserveAspectRatio="xMidYMid meet">
         {/* Left channel */}
@@ -121,11 +121,9 @@ const WaveformVisual = ({ active }) => (
       <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-1.5">
         <span className="text-[9px] text-zinc-400">Stereo → Mono Mix</span>
         <span className="text-[10px] text-zinc-600">·</span>
-        <span className="text-[9px] text-zinc-400">Peak Normalize</span>
+        <span className="text-[9px] text-zinc-400">Loudness Normalize (ffmpeg)</span>
         <span className="text-[10px] text-zinc-600">·</span>
-        <span className="text-[9px] text-zinc-400">Lowpass @ 5.5 kHz</span>
-        <span className="text-[10px] text-zinc-600">·</span>
-        <span className="text-[9px] text-zinc-400">Decimate ÷4</span>
+        <span className="text-[9px] text-zinc-400">Resample 22.05 kHz</span>
       </div>
       <div className="flex-1 h-px bg-zinc-700" />
     </motion.div>
@@ -138,7 +136,7 @@ const WaveformVisual = ({ active }) => (
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7C93FB]">Stage 2 — Normalized Mono Output</span>
-        <span className="text-[9px] text-zinc-600 font-mono">11,025 Hz · 16-bit · 1ch</span>
+        <span className="text-[9px] text-zinc-600 font-mono">22,050 Hz · 16-bit · 1ch</span>
       </div>
       <svg className="flex-1 w-full" viewBox="0 0 800 100" preserveAspectRatio="xMidYMid meet">
         {/* Normalized mono */}
@@ -165,12 +163,12 @@ const WaveformVisual = ({ active }) => (
       transition={{delay:2.5}}
       className="relative z-10 flex items-center gap-3 shrink-0"
     >
-      {[
-        { label: 'Mono Mix', formula: 'x[n] = ½·L[n] + ½·R[n]' },
-        { label: 'Normalization', formula: 'x̂[n] = x[n] / max(|x|)' },
-        { label: 'Antialiasing', formula: 'LPF cutoff = 5,512 Hz' },
-        { label: 'Decimation', formula: '44,100 ÷ 4 = 11,025 Hz' },
-      ].map((m, i) => (
+        {[
+          { label: 'Mono Mix', formula: 'x[n] = ½·L[n] + ½·R[n]' },
+          { label: 'Loudness Normalize', formula: 'ffmpeg loudnorm' },
+          { label: 'Resample', formula: '44,100 → 22,050 Hz' },
+          { label: 'Bit Depth', formula: '16-bit PCM' },
+        ].map((m, i) => (
         <div key={i} className="flex-1 bg-zinc-900/60 border border-zinc-800 rounded-md px-3 py-2">
           <div className="text-[8px] font-semibold text-zinc-500 uppercase tracking-wider">{m.label}</div>
           <div className="text-[11px] text-zinc-300 mt-0.5 font-medium" style={{fontFamily: "'Cambria Math', Georgia, serif", fontStyle:'italic'}}>{m.formula}</div>
@@ -186,10 +184,8 @@ const FrameSegmentationVisual = ({ active }) => (
     <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 600">
       <DetailedAxis x={60} width={1000} height={500} titleX="Sample index (n) →" titleY="Window amplitude →" />
       
-      <MathBlock x={100} y={40} delay={0.5}>w[n] = 0.54 − 0.46 · cos(2πn / N)</MathBlock>
-
-      <Badge x={700} y={60} title="Frame Size" value="N = 2048 samples ≈ 186 ms" delay={1.0} />
-      <Badge x={700} y={150} title="Hop Size" value="H = 512 samples (75% overlap)" delay={1.5} />
+      <Badge x={700} y={60} title="Frame Size" value="N = 4096 samples ≈ 186 ms" delay={1.0} />
+      <Badge x={700} y={150} title="Hop Size" value="H = 2048 samples (50% overlap)" delay={1.5} />
 
       {/* Frame Overlaps */}
       {Array.from({ length: 10 }).map((_, i) => (
@@ -212,7 +208,7 @@ const FrameSegmentationVisual = ({ active }) => (
 
       {/* Measurement Bracket for overlap */}
       <motion.path d="M 400,520 L 400,530 L 480,530 L 480,520" fill="none" stroke={THEME.accent} strokeWidth="2" initial={{opacity:0}} animate={{opacity:1}} transition={{delay:2.5}} />
-      <motion.text x="440" y="555" fill={THEME.accent} fontSize="12" fontWeight="500" fontFamily="Inter, system-ui, sans-serif" textAnchor="middle" initial={{opacity:0}} animate={{opacity:1}} transition={{delay:2.5}}>Hop (512)</motion.text>
+      <motion.text x="440" y="555" fill={THEME.accent} fontSize="12" fontWeight="500" fontFamily="Inter, system-ui, sans-serif" textAnchor="middle" initial={{opacity:0}} animate={{opacity:1}} transition={{delay:2.5}}>Hop (2048)</motion.text>
     </svg>
   </div>
 );
@@ -271,9 +267,6 @@ const SpectrogramVisual = ({ active }) => {
       >
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">FFT Spectrogram</span>
-          <div className="inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700/40 rounded-md px-3 py-1">
-            <span className="text-[12px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>X_k = Σ x_n · e^(−i2πkn/N)</span>
-          </div>
         </div>
         <span className="text-[9px] text-zinc-600">O(N log N) Radix-2 DIT</span>
       </motion.div>
@@ -291,7 +284,7 @@ const SpectrogramVisual = ({ active }) => {
           {/* Y-axis tick labels */}
           {[0, 10, 20, 30, 39].map((row, i) => (
             <text key={`y-${i}`} x="22" y={10 + (39 - row) * cellH + cellH/2 + 2} fill="white" fontSize="5.5" opacity="0.35" textAnchor="end" fontFamily="Inter, sans-serif">
-              {Math.round(row * (5512 / 39))}
+              {Math.round(row * (11025 / 39))}
             </text>
           ))}
           
@@ -360,16 +353,16 @@ const SpectrogramVisual = ({ active }) => {
             ))}
           </div>
           <span className="text-[9px] text-zinc-600">High</span>
-          <span className="text-[8px] text-zinc-500 ml-1">Magnitude (dB)</span>
+          <span className="text-[8px] text-zinc-500 ml-1">Magnitude (linear)</span>
         </div>
 
         {/* Stats */}
         <div className="flex items-center gap-3">
           {[
             { label: 'Frames', value: '80' },
-            { label: 'FFT Size', value: '2048' },
-            { label: 'Freq Bins', value: '1024' },
-            { label: 'Nyquist', value: '5,512 Hz' },
+            { label: 'FFT Size', value: '4096' },
+            { label: 'Freq Bins', value: '2048' },
+            { label: 'Nyquist', value: '11,025 Hz' },
           ].map((s, i) => (
             <div key={i} className="bg-zinc-900/60 border border-zinc-800 rounded-md px-2.5 py-1.5">
               <div className="text-[7px] font-semibold text-zinc-600 uppercase tracking-wider">{s.label}</div>
@@ -418,12 +411,9 @@ const PowerSpectrumVisual = ({ active }) => {
         className="relative z-10 flex items-center justify-between shrink-0"
       >
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Power Spectrum (Log Scale)</span>
-          <div className="inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700/40 rounded-md px-3 py-1">
-            <span className="text-[12px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>P(k) = 10 · log₁₀( |Re|² + |Im|² )</span>
-          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Magnitude Spectrum (Linear)</span>
         </div>
-        <span className="text-[9px] text-zinc-600">dB scale emphasizes perceptual features</span>
+        <span className="text-[9px] text-zinc-600">Linear magnitude from FFT bins</span>
       </motion.div>
 
       {/* Spectrum chart */}
@@ -441,7 +431,7 @@ const PowerSpectrumVisual = ({ active }) => {
           </defs>
 
           {/* Y-axis labels */}
-          <text x="12" y="140" fill="white" fontSize="7" opacity="0.3" fontFamily="Inter, sans-serif" textAnchor="middle" transform="rotate(-90, 12, 140)">Power (dB) →</text>
+          <text x="12" y="140" fill="white" fontSize="7" opacity="0.3" fontFamily="Inter, sans-serif" textAnchor="middle" transform="rotate(-90, 12, 140)">Magnitude →</text>
           {[0, 25, 50, 75, 100].map((v, i) => (
             <g key={`y-${i}`}>
               <text x="25" y={250 - v * 2.3 + 2} fill="white" fontSize="5.5" opacity="0.3" textAnchor="end" fontFamily="Inter, sans-serif">{v}</text>
@@ -511,11 +501,11 @@ const PowerSpectrumVisual = ({ active }) => {
         transition={{delay:2.5}}
         className="relative z-10 flex items-center gap-3 shrink-0"
       >
-        {[
-          { label: 'Transform', value: '|X(k)|² → dB' },
+          {[
+          { label: 'Transform', value: '|X(k)| magnitude' },
           { label: 'Resolution', value: '~5.4 Hz/bin' },
-          { label: 'Dynamic Range', value: '~96 dB (16-bit)' },
-          { label: 'Perceptual', value: 'Log scale weights low freq' },
+          { label: 'FFT Size', value: '4096' },
+          { label: 'Freq Bins', value: '2048' },
         ].map((m, i) => (
           <div key={i} className="flex-1 bg-zinc-900/60 border border-zinc-800 rounded-md px-3 py-2">
             <div className="text-[8px] font-semibold text-zinc-500 uppercase tracking-wider">{m.label}</div>
@@ -539,10 +529,8 @@ const NoiseSuppressionVisual = ({ active }) => {
     return { noise, signal: noise + peakHeight, isPeak };
   });
 
-  // Adaptive threshold (rolling mean + α·σ)
-  const thresholdData = Array.from({length: numBins}, (_, i) => {
-    return 22 + Math.sin(i * 0.05) * 3 + ((i * 5 + 2) % 7) * 0.5;
-  });
+  // Fixed magnitude threshold
+  const thresholdData = Array.from({length: numBins}, () => 22);
 
   return (
     <div className="w-full h-full relative p-6 flex flex-col gap-3 overflow-hidden">
@@ -555,7 +543,7 @@ const NoiseSuppressionVisual = ({ active }) => {
         className="relative z-10 flex-1 bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 flex flex-col min-h-0"
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Before — Raw Power Spectrum with Noise</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Before — Raw Magnitude Spectrum</span>
           <div className="flex items-center gap-3 text-[9px] text-zinc-600">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-zinc-500 inline-block" />Noise floor</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7C93FB] inline-block" />Signal</span>
@@ -587,7 +575,7 @@ const NoiseSuppressionVisual = ({ active }) => {
               />
             );
           })}
-          {/* Adaptive threshold line */}
+          {/* Threshold line */}
           <motion.path
             d={`M ${thresholdData.map((t,i) => `${5 + i*(590/numBins)},${98 - t}`).join(' L ')}`}
             fill="none" stroke={THEME.danger} strokeWidth="1.2" strokeDasharray="3 3"
@@ -595,17 +583,8 @@ const NoiseSuppressionVisual = ({ active }) => {
             initial={{pathLength:0}} animate={active?{pathLength:1}:{}}
             transition={{delay:1.2, duration:1}}
           />
-          {/* Sliding window indicator */}
-          {active && (
-            <motion.rect
-              x="0" y="0" width="50" height="100" rx="3"
-              fill="none" stroke="white" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.3"
-              initial={{x:-50}} animate={{x:560}}
-              transition={{duration:4, repeat:Infinity, ease:'linear', delay:2}}
-            />
-          )}
           {/* Threshold label */}
-          <motion.text x="598" y={98 - thresholdData[numBins-1] + 3} fill={THEME.danger} fontSize="5" fontFamily="Inter, sans-serif" opacity="0.7" initial={{opacity:0}} animate={active?{opacity:0.7}:{}} transition={{delay:1.8}}>T(n)</motion.text>
+          <motion.text x="598" y={98 - thresholdData[numBins-1] + 3} fill={THEME.danger} fontSize="5" fontFamily="Inter, sans-serif" opacity="0.7" initial={{opacity:0}} animate={active?{opacity:0.7}:{}} transition={{delay:1.8}}>T=5.0</motion.text>
         </svg>
       </motion.div>
 
@@ -617,7 +596,7 @@ const NoiseSuppressionVisual = ({ active }) => {
       >
         <div className="flex-1 h-px bg-zinc-700" />
         <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-1.5">
-          <span className="text-[10px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>T(n) = μ + α·σ</span>
+          <span className="text-[10px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>T = 5.0 magnitude</span>
           <span className="text-zinc-600 text-[10px]">·</span>
           <span className="text-[9px] text-zinc-400">Bins below threshold → suppressed</span>
         </div>
@@ -631,7 +610,7 @@ const NoiseSuppressionVisual = ({ active }) => {
         className="relative z-10 flex-1 bg-zinc-900/60 border border-[#7C93FB]/30 rounded-lg p-4 flex flex-col min-h-0"
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7C93FB]">After — Noise Suppressed</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7C93FB]">After — Below-threshold bins removed</span>
           <motion.span initial={{opacity:0}} animate={active?{opacity:1}:{}} transition={{delay:3}} className="text-[9px] text-emerald-400 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]" />
             Only peaks above threshold survive
@@ -680,9 +659,7 @@ const NoiseSuppressionVisual = ({ active }) => {
         transition={{delay:3}}
         className="relative z-10 flex items-center gap-4 text-[9px] text-zinc-500 shrink-0 px-1"
       >
-        <span>Window size: 15 bins</span>
-        <span>·</span>
-        <span>α = 1.5 (sensitivity)</span>
+        <span>Threshold: 5.0 magnitude</span>
         <span>·</span>
         <span>Retained: {signalData.filter((d,i) => d.signal > thresholdData[i]).length} / {numBins} bins ({Math.round(signalData.filter((d,i) => d.signal > thresholdData[i]).length / numBins * 100)}%)</span>
       </motion.div>
@@ -692,12 +669,12 @@ const NoiseSuppressionVisual = ({ active }) => {
 
 const SubBandPeakVisual = ({ active }) => {
   const bands = [
-    { name: 'Sub-Bass', range: '0–250 Hz', color: '#F87171', colorBg: 'rgba(248,113,113,0.06)', colorBorder: 'rgba(248,113,113,0.15)', peakHz: '142 Hz', peakPos: 45 },
-    { name: 'Bass',     range: '250–500 Hz', color: '#FB923C', colorBg: 'rgba(251,146,60,0.06)', colorBorder: 'rgba(251,146,60,0.15)', peakHz: '387 Hz', peakPos: 52 },
-    { name: 'Low Mid',  range: '500–1k Hz', color: '#FBBF24', colorBg: 'rgba(251,191,36,0.06)', colorBorder: 'rgba(251,191,36,0.15)', peakHz: '724 Hz', peakPos: 60 },
-    { name: 'Mid',      range: '1k–2k Hz', color: '#34D399', colorBg: 'rgba(52,211,153,0.06)', colorBorder: 'rgba(52,211,153,0.15)', peakHz: '1.4 kHz', peakPos: 48 },
-    { name: 'High Mid', range: '2k–4k Hz', color: '#22D3EE', colorBg: 'rgba(34,211,238,0.06)', colorBorder: 'rgba(34,211,238,0.15)', peakHz: '3.1 kHz', peakPos: 55 },
-    { name: 'Treble',   range: '4k–8k Hz', color: '#818CF8', colorBg: 'rgba(129,140,248,0.06)', colorBorder: 'rgba(129,140,248,0.15)', peakHz: '5.8 kHz', peakPos: 42 },
+    { name: 'Sub-Bass', range: '0–500 Hz', color: '#F87171', colorBg: 'rgba(248,113,113,0.06)', colorBorder: 'rgba(248,113,113,0.15)', peakHz: '142 Hz', peakPos: 45 },
+    { name: 'Bass',     range: '500–1k Hz', color: '#FB923C', colorBg: 'rgba(251,146,60,0.06)', colorBorder: 'rgba(251,146,60,0.15)', peakHz: '860 Hz', peakPos: 52 },
+    { name: 'Low Mid',  range: '1k–2k Hz', color: '#FBBF24', colorBg: 'rgba(251,191,36,0.06)', colorBorder: 'rgba(251,191,36,0.15)', peakHz: '1.6 kHz', peakPos: 60 },
+    { name: 'Mid',      range: '2k–4k Hz', color: '#34D399', colorBg: 'rgba(52,211,153,0.06)', colorBorder: 'rgba(52,211,153,0.15)', peakHz: '2.8 kHz', peakPos: 48 },
+    { name: 'High Mid', range: '4k–8k Hz', color: '#22D3EE', colorBg: 'rgba(34,211,238,0.06)', colorBorder: 'rgba(34,211,238,0.15)', peakHz: '6.3 kHz', peakPos: 55 },
+    { name: 'Treble',   range: '8k–11k Hz', color: '#818CF8', colorBg: 'rgba(129,140,248,0.06)', colorBorder: 'rgba(129,140,248,0.15)', peakHz: '9.8 kHz', peakPos: 42 },
   ];
 
   return (
@@ -712,9 +689,6 @@ const SubBandPeakVisual = ({ active }) => {
       >
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">6 Parallel Sub-Band Scanners</span>
-          <div className="inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700/40 rounded-md px-3 py-1">
-            <span className="text-[12px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>Peak_i = max(X(B_i))</span>
-          </div>
         </div>
         <span className="text-[9px] text-zinc-600">Each band scanned independently</span>
       </motion.div>
@@ -785,7 +759,7 @@ const SubBandPeakVisual = ({ active }) => {
       >
         <span>0 Hz</span>
         <div className="flex-1 max-w-[300px] h-2 rounded-full" style={{background:'linear-gradient(90deg, #F87171, #FB923C, #FBBF24, #34D399, #22D3EE, #818CF8)'}} />
-        <span>8 kHz</span>
+        <span>11 kHz</span>
       </motion.div>
     </div>
   );
@@ -798,8 +772,7 @@ const ConstellationVisual = ({ active }) => {
       <GridBg />
       <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 600">
         <DetailedAxis x={60} width={1000} height={500} titleX="Time (s) →" titleY="Frequency (Hz) →" />
-        <MathBlock x={100} y={40} delay={0.2}>C = {'{'} (tᵢ, fᵢ) | P(tᵢ, fᵢ) is a local maximum {'}'}</MathBlock>
-        <Badge x={700} y={40} title="Sparse Map" value="Approximately 30 peaks/sec" delay={0.6} />
+        <Badge x={700} y={40} title="Sparse Map" value="6 peaks per frame (~65/sec)" delay={0.6} />
 
         {/* Scanning grid */}
         {active && Array.from({length:10}).map((_,i)=>(
@@ -828,7 +801,6 @@ const CombinatorialPairingVisual = ({ active }) => (
     <GridBg />
     <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 600">
       <DetailedAxis x={60} width={1000} height={500} titleX="Time →" titleY="Frequency →" />
-      <MathBlock x={100} y={40} delay={0.2}>∀ t_anchor: targets ∈ [t_a + Δt_min, t_a + Δt_max] ∩ [f_a ± Δf]</MathBlock>
 
       <circle cx="200" cy="300" r="10" fill={THEME.primary} style={{filter:THEME.glow}} />
       {active && <Badge x={60} y={150} title="Anchor Peak" value="Origin point for pairing scan" delay={0.5} />}
@@ -989,33 +961,6 @@ const TimeDeltaVisual = ({ active }) => {
   );
 };
 
-const EntropyFilteringVisual = ({ active }) => (
-  <div className="w-full h-full relative p-12">
-    <GridBg />
-    <MathBlock x={50} y={40} delay={0.2}>if count(pairs in region) {'>'} ρ_thresh → discard</MathBlock>
-    <Badge x={700} y={40} title="Density Reduction" value="Prunes ~80% of redundant data" delay={0.5} />
-
-    <div className="absolute top-[30%] left-[10%] right-[10%] h-[50%] flex justify-between items-center gap-10">
-       <div className="flex-1 h-full bg-zinc-900/80 border border-zinc-700/40 rounded-xl relative overflow-hidden shadow-sm">
-          <div className="absolute top-4 w-full text-center text-zinc-500 font-semibold tracking-wide z-10 text-base">Raw Vectors</div>
-          <svg className="w-full h-full opacity-40">
-            {Array.from({length:250}).map((_,i)=><line key={i} x1={Math.random()*400} y1={Math.random()*400} x2={Math.random()*400} y2={Math.random()*400} stroke={i%3===0?THEME.danger:'white'} strokeWidth={i%3===0?1.5:0.5} />)}
-          </svg>
-          {active && <motion.div className="absolute inset-x-0 h-10 bg-[#FCA5A5]/30 shadow-[0_0_30px_#FCA5A5]" initial={{y:-50}} animate={{y:400}} transition={{duration:2, repeat:Infinity, repeatType:"reverse"}} />}
-       </div>
-
-       <div className="text-white font-bold text-5xl opacity-60">→</div>
-
-       <div className="flex-1 h-full bg-zinc-900/80 border-2 border-[#7C93FB]/60 rounded-xl relative overflow-hidden shadow-[0_0_40px_rgba(124,147,251,0.15)]">
-          <div className="absolute top-4 w-full text-center text-[#7C93FB] font-semibold tracking-wide z-10 text-base">Pruned Output</div>
-          <svg className="w-full h-full">
-            {Array.from({length:35}).map((_,i)=><motion.line key={i} x1={20+Math.random()*300} y1={20+Math.random()*300} x2={20+Math.random()*300} y2={20+Math.random()*300} stroke={THEME.primary} strokeWidth="3" style={{filter: THEME.glow}} initial={{pathLength:0}} animate={active?{pathLength:1}:{}} transition={{duration:1, delay:1.5+Math.random()*1}} />)}
-          </svg>
-       </div>
-    </div>
-  </div>
-);
-
 const InvertedIndexVisual = ({ active }) => {
   // Deterministic hash table entries
   const hashEntries = [
@@ -1046,7 +991,7 @@ const InvertedIndexVisual = ({ active }) => {
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Inverted Hash Index</span>
           <div className="inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700/40 rounded-md px-3 py-1">
-            <span className="text-[12px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>Hash₃₂ → [(SongID, Offset), …]</span>
+            <span className="text-[12px] text-[#A5B4FC]" style={{fontFamily:"'Cambria Math', Georgia, serif", fontStyle:'italic'}}>Hash (packed) → [(SongID, Offset), …]</span>
           </div>
         </div>
         <span className="text-[9px] text-zinc-600">O(1) constant-time lookup</span>
@@ -1163,7 +1108,7 @@ const InvertedIndexVisual = ({ active }) => {
         className="relative z-10 flex items-center gap-3 shrink-0"
       >
         {[
-          { label: 'Hash Size', value: '32-bit' },
+          { label: 'Hash Size', value: 'Packed in int64' },
           { label: 'Buckets', value: '2^20 slots' },
           { label: 'Collisions', value: 'Chained lists' },
           { label: 'Total Entries', value: '~2.4M hashes' },
@@ -1550,17 +1495,16 @@ const HistogramVotingVisual = ({ active }) => {
 
 
 const STEPS = [
-  { id: 1, title: "Raw Audio Signal", component: WaveformVisual, desc: "The system captures a high-fidelity stereo audio stream and immediately applies a multi-stage preprocessing pipeline. First, the left and right channels are combined into a single mono mix using equal-weight averaging. Then, a hardware-grade low-pass antialiasing filter removes all frequency content above 5.5 kHz — the upper bound of musically relevant information for fingerprinting. Finally, a decimation stage reduces the sample rate by a factor of 4 (from 44.1 kHz down to 11.025 kHz), dramatically shrinking the data volume while retaining the spectral characteristics needed for accurate identification." },
-  { id: 2, title: "Frame Segmentation", component: FrameSegmentationVisual, desc: "The continuous audio signal is divided into short, overlapping analysis windows called frames. Each frame is exactly 2048 samples long (approximately 186 ms at 11.025 kHz), providing sufficient frequency resolution to distinguish nearby tones. Consecutive frames overlap by 75% — a hop size of just 512 samples — ensuring that transient events near frame boundaries are never missed. Before analysis, each frame is multiplied by a Hamming window function, a smooth bell-shaped curve that tapers the signal to zero at the edges. This critical step prevents spectral leakage artifacts that would otherwise corrupt the frequency analysis." },
-  { id: 3, title: "Spectrogram (FFT)", component: SpectrogramVisual, desc: "Each windowed frame is transformed from the time domain into the frequency domain using a Radix-2 Decimation-in-Time Fast Fourier Transform — an O(N log N) algorithm that decomposes each 2048-sample block into its constituent sinusoidal components. The result is a two-dimensional matrix where each column represents a time frame and each row represents a frequency bin, with cell values encoding complex amplitudes. Together, these columns form a spectrogram: a time-frequency heat map that reveals the harmonic structure, formant patterns, and rhythmic pulse of the audio." },
-  { id: 4, title: "Power Spectrum", component: PowerSpectrumVisual, desc: "The raw complex-valued FFT output is converted into a power spectrum by computing the squared magnitude of each frequency bin's real and imaginary components. This value is then projected onto a logarithmic (decibel) scale using the formula P(k) = 10 · log₁₀(|Re|² + |Im|²). The logarithmic transformation is essential because it mirrors the nonlinear sensitivity of the human auditory system — our ears perceive loudness on a roughly logarithmic scale. The resulting representation compresses the enormous dynamic range of real-world audio into a manageable scale, making subtle but important tonal features visible alongside dominant ones." },
-  { id: 5, title: "Noise Suppression", component: NoiseSuppressionVisual, desc: "A real-time adaptive noise floor algorithm continuously estimates the local statistical properties of the signal — specifically the running mean (μ) and standard deviation (σ) within a sliding window of neighboring bins. A dynamic threshold T = μ + α·σ is computed at every point; any spectral energy that fails to exceed this threshold is classified as broadband ambient noise and zeroed out. The sensitivity parameter α is tuned to balance between aggressive noise rejection and preservation of quiet but genuine musical content. This step is critical for real-world robustness, allowing the system to operate reliably in noisy environments like cafés, cars, or crowded venues." },
-  { id: 6, title: "Sub-Band Peak Extraction", component: SubBandPeakVisual, desc: "Rather than searching the entire spectrum for peaks, the algorithm partitions the frequency axis into six perceptually meaningful bands: Sub-Bass (0–250 Hz), Bass (250–500 Hz), Low Mid (500–1 kHz), Mid (1–2 kHz), High Mid (2–4 kHz), and Treble (4–8 kHz). Within each band, an independent scanner identifies the single strongest frequency bin — the local spectral maximum. This guarantees that structurally important features from every register of the audio are preserved: a deep bass groove won't mask a delicate high-hat pattern, and vice versa. The six peak scanners run concurrently for maximum throughput." },
-  { id: 7, title: "Constellation Map", component: ConstellationVisual, desc: "The extracted peaks are projected onto a sparse two-dimensional coordinate system where the x-axis represents time and the y-axis represents frequency. Each peak becomes a point in this 'constellation map' — a dramatically compressed representation that reduces thousands of raw audio samples per frame down to just a few landmark coordinates. The map typically retains around 30 peaks per second of audio. This sparse encoding is the key to the system's noise resilience: minor variations in recording quality, background noise, or volume only shift peak intensities slightly, leaving the constellation geometry largely intact — much like how star patterns remain recognizable despite atmospheric distortion." },
-  { id: 8, title: "Combinatorial Pairing", component: CombinatorialPairingVisual, desc: "Each constellation point is designated as an 'anchor' and paired with nearby points that fall within a bounded target zone — a rectangular region defined by minimum/maximum time offsets (Δt) and a frequency range (±Δf) relative to the anchor. This combinatorial strategy generates multiple overlapping pair vectors per anchor, creating a rich web of relationships that captures the local spectral structure. The target zone boundaries are carefully calibrated: too small, and the fingerprint lacks distinctiveness; too large, and the search space explodes with spurious matches. The result is a set of anchor–target pairs that encode the musical relationships between nearby spectral events." },
+  { id: 1, title: "Raw Audio Signal", component: WaveformVisual, desc: "The system accepts any input audio, then normalizes it into a consistent format for fingerprinting. The pipeline mixes channels to mono, applies ffmpeg loudness normalization, and resamples to 22.05 kHz at 16-bit PCM. This ensures every recording enters the fingerprinting stage with the same sample rate, amplitude profile, and channel layout." },
+  { id: 2, title: "Frame Segmentation", component: FrameSegmentationVisual, desc: "The normalized signal is segmented into overlapping analysis frames. Each frame is 4096 samples long (about 186 ms at 22.05 kHz) with a hop size of 2048 samples (50% overlap). A Hamming window is applied to each frame to reduce spectral leakage before the FFT." },
+  { id: 3, title: "Spectrogram (FFT)", component: SpectrogramVisual, desc: "Each windowed frame is transformed via a Radix-2 FFT (O(N log N)). The system keeps the magnitudes of the positive-frequency bins only, producing a time–frequency spectrogram where each column is a frame and each row is a frequency bin." },
+  { id: 4, title: "Magnitude Spectrum", component: PowerSpectrumVisual, desc: "The backend operates on linear magnitude values (|X(k)|), not a log or dB-scaled spectrum. These magnitudes are used directly for peak extraction and thresholding." },
+  { id: 5, title: "Thresholding", component: NoiseSuppressionVisual, desc: "Bins with magnitude below a fixed threshold are discarded to suppress noise. This is a simple constant cutoff rather than an adaptive noise-floor estimator." },
+  { id: 6, title: "Sub-Band Peak Extraction", component: SubBandPeakVisual, desc: "The spectrogram is divided into six bands: 0–500, 500–1k, 1–2k, 2–4k, 4–8k, and 8–11.025 kHz. For each time frame, the single strongest bin in each band is selected as a peak, ensuring balanced coverage across the spectrum." },
+  { id: 7, title: "Constellation Map", component: ConstellationVisual, desc: "The extracted peaks are projected onto a sparse time–frequency map where each peak becomes a point. This compresses each frame into a handful of landmarks, making the representation compact and resilient to noise or recording variability." },
+  { id: 8, title: "Combinatorial Pairing", component: CombinatorialPairingVisual, desc: "Each peak becomes an anchor and is paired with up to 5 target peaks that occur 2–30 frames later (roughly up to 2.8s lookahead). This bounded target zone keeps the hash count manageable while preserving local time–frequency structure for robust matching." },
   { id: 9, title: "Time-Delta Encoding", component: TimeDeltaVisual, desc: "Each anchor–target pair is encoded as a compact tuple: (f_anchor, f_target, Δt), where Δt = t_target − t_anchor is the relative time difference between the two peaks. By recording only the time delta — never the absolute timestamp — the encoding becomes completely invariant to where in the song the sample was captured. A snippet from the middle of a track produces the same set of tuples as one from the beginning, because the internal time relationships are identical. This property is what makes the system capable of recognizing a song from any arbitrary starting point in its playback." },
-  // { id: 10, title: "Entropy Filtering", component: EntropyFilteringVisual, desc: "The combinatorial pairing phase can produce an enormous number of candidate vectors, especially in spectrally dense regions like percussive hits or broadband noise bursts. The entropy filter addresses this by measuring the local density of pairs in each time-frequency neighborhood. If the count of pairs in a region exceeds a density threshold ρ, the entire cluster is discarded — these over-populated areas carry little discriminative power and would degrade both storage efficiency and matching precision. This aggressive pruning step typically eliminates around 80% of raw pair data, dramatically reducing memory consumption and database insertion time while preserving only the most informative, structurally distinctive fingerprint fragments." },
-  { id: 10, title: "Inverted Hash Index", component: InvertedIndexVisual, desc: "Each surviving (f₁, f₂, Δt) tuple is compressed into a single 32-bit hash integer through a deterministic bitwise packing operation. This hash serves as a key in an inverted index — a hash-map data structure where each key maps to an array of (SongID, TimeOffset) entries. Lookups are O(1) constant-time, meaning the system can locate all songs containing a specific spectral fingerprint instantaneously regardless of database size. During ingestion, new entries are appended to existing bucket lists; during querying, the same hash computation is performed on the query audio and the corresponding bucket is retrieved in a single memory access." },
+  { id: 10, title: "Inverted Hash Index", component: InvertedIndexVisual, desc: "Each surviving (f₁, f₂, Δt) tuple is compressed into a single 64-bit hash integer through a deterministic bitwise packing operation. This hash serves as a key in an inverted index — a hash-map data structure where each key maps to an array of (SongID, TimeOffset) entries. Lookups are O(1) constant-time, meaning the system can locate all songs containing a specific spectral fingerprint instantaneously regardless of database size. During ingestion, new entries are appended to existing bucket lists; during querying, the same hash computation is performed on the query audio and the corresponding bucket is retrieved in a single memory access." },
   { id: 11, title: "Histogram Voting", component: HistogramVotingVisual, desc: "The final identification stage collects all hash matches between the query and the database, then organizes them by computing each match's time offset: Δt = t_database − t_query. These offsets are accumulated into a histogram where each bin represents a candidate temporal alignment between the query and a stored song. If a song is truly the match, the majority of its hash hits will share the same offset bin, producing a sharp, dominant spike. When the vote count in any single bin exceeds the confidence threshold, the system declares a positive match. The height of the winning bin relative to the runner-up provides a quantitative confidence margin — in practice, true matches typically exceed the threshold by over 1000%, making false positives extremely rare." },
 ];
 
@@ -1574,7 +1518,6 @@ export {
   ConstellationVisual,
   CombinatorialPairingVisual,
   TimeDeltaVisual,
-  EntropyFilteringVisual,
   InvertedIndexVisual,
   HistogramVotingVisual,
 };

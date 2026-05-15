@@ -1,14 +1,28 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Disc3, Music2 } from 'lucide-react';
+import { ChevronDown, Disc3, Music2 } from 'lucide-react';
 
 function Results() {
   const navigate = useNavigate();
   const location = useLocation();
   const { trackInfo } = location.state || { trackInfo: [] };
+  const [showRelated, setShowRelated] = useState(false);
+  const relatedRef = useRef(null);
 
   const handleBackClick = () => {
     navigate('/');
+  };
+
+  const handleRelatedClick = () => {
+    const nextShow = !showRelated;
+    setShowRelated(nextShow);
+    if (nextShow) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          relatedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
   };
 
   if (!trackInfo || trackInfo.length === 0) {
@@ -24,26 +38,10 @@ function Results() {
   const otherMatches = trackInfo.slice(1, 5);
 
   return (
-      <div 
-        onClick={handleBackClick}
-        className="flex flex-col items-center w-full min-h-[100dvh] pt-12 pb-32 px-4 relative z-10 animate-in fade-in zoom-in-95 duration-700 cursor-pointer"
-      >
-        
+      <div className="flex flex-col items-center w-full min-h-[100dvh] pt-12 pb-32 px-4 relative z-10 animate-in fade-in zoom-in-95 duration-700 cursor-pointer">
+  
         {/* Inner container wrapper */}
         <div className="flex flex-col items-center w-full h-full cursor-default">
-      
-      {/* Header bar */}
-      <div className="absolute top-0 left-0 w-full flex items-center justify-between p-6 z-30">
-        <button 
-          onClick={(e) => { e.stopPropagation(); handleBackClick(); }} 
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white transition-all active:scale-95 backdrop-blur-sm"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div className="text-[10px] font-mono text-white/80 uppercase tracking-[0.3em] font-semibold bg-white/10 border border-white/20 px-4 py-2 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.1)] backdrop-blur-sm">
-          Match Found
-        </div>
-      </div>
 
       {/* Massive Spinning Vinyl Disk (50% of screen height) */}
       <div className="relative group mt-12 mb-8">
@@ -85,40 +83,38 @@ function Results() {
         )}
       </div>
 
-      {/* Audio Player */}
-      <div 
-        className="w-full max-w-md px-4 mt-8"
-        onClick={(e) => e.stopPropagation()} // Prevent nav when interacting with audio
-      >
-        <audio 
-          className="w-full h-12 rounded-full bg-zinc-950/80 shadow-inner border border-white/10 backdrop-blur-md [&::-webkit-media-controls-panel]:bg-transparent [&::-webkit-media-controls-current-time-display]:text-zinc-300 [&::-webkit-media-controls-time-remaining-display]:text-zinc-300 drop-shadow-2xl cursor-default" 
-          controls 
-          src={topMatch.track_url} 
-        />
-      </div>
-
-      {/* Flat List of Other Matches (No big card or individual cards) */}
+      {/* Flat List of Other Matches */}
       {otherMatches.length > 0 && (
-        <div className="w-full max-w-2xl mt-16 px-4">
-          <div className="flex items-center gap-3 mb-6 px-4">
-            <Disc3 size={14} className="text-zinc-500" />
-            <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 font-semibold">Related Matches</h3>
-            <div className="h-px bg-white/5 flex-1 ml-4"></div>
-          </div>
+        <div ref={relatedRef} className="w-full max-w-2xl mt-16 px-4">
+          <button
+            type="button"
+            onClick={handleRelatedClick}
+            className="w-full flex items-center gap-3 mb-6 px-4 py-3 text-left rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] transition-colors"
+            aria-expanded={showRelated}
+          >
+            <Disc3 size={14} className="text-zinc-400" />
+            <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-semibold">
+              {otherMatches.length} Related Match{otherMatches.length > 1 ? 'es' : ''}
+            </h3>
+            <div className="h-px bg-white/10 flex-1 ml-4"></div>
+            <ChevronDown size={14} className={`text-zinc-500 transition-transform ${showRelated ? 'rotate-180' : ''}`} />
+          </button>
           
-          <div className="flex flex-col w-full">
-            {otherMatches.map((track, index) => (
-              <div key={index} className="flex items-center justify-between py-4 px-6 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors cursor-default group">
-                <div className="flex flex-col min-w-0 pr-6">
-                  <p className="text-base font-bold text-zinc-300 truncate group-hover:text-white transition-colors">{track.track}</p>
-                  <p className="text-xs text-zinc-500 truncate mt-1 group-hover:text-white/80 transition-colors uppercase tracking-wider">{track.artist}</p>
+          {showRelated && (
+            <div className="flex flex-col w-full">
+              {otherMatches.map((track, index) => (
+                <div key={index} className="flex items-center justify-between py-4 px-6 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors cursor-default group">
+                  <div className="flex flex-col min-w-0 pr-6">
+                    <p className="text-base font-bold text-zinc-300 truncate group-hover:text-white transition-colors">{track.track}</p>
+                    <p className="text-xs text-zinc-500 truncate mt-1 group-hover:text-white/80 transition-colors uppercase tracking-wider">{track.artist}</p>
+                  </div>
+                  {track.album_image && (
+                    <img src={track.album_image} alt={track.album} className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity shadow-lg group-hover:shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+                  )}
                 </div>
-                {track.album_image && (
-                  <img src={track.album_image} alt={track.album} className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity shadow-lg group-hover:shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
         </div>

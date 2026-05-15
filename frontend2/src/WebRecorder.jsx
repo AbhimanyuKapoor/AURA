@@ -4,31 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mic, Square, Loader2, X, PanelBottomOpen, PanelBottomClose } from 'lucide-react';
 import { BarVisualizer, useAudioVolume } from './components/ui/bar-visualizer';
 import Spectrogram from './Spectrogram';
-import {
-  WaveformVisual,
-  SpectrogramVisual,
-  PowerSpectrumVisual,
-  NoiseSuppressionVisual,
-  SubBandPeakVisual,
-  ConstellationVisual,
-  TimeDeltaVisual,
-  InvertedIndexVisual,
-  HistogramVotingVisual,
-} from './HowItWorks';
 
 const GO_API_WS = import.meta.env.VITE_GO_WS_URL || 'ws://localhost:8080';
-
-const DIAGRAM_STEPS = [
-  { title: 'Raw Audio Signal', component: WaveformVisual },
-  { title: 'FFT Spectrogram', component: SpectrogramVisual },
-  { title: 'Power Spectrum', component: PowerSpectrumVisual },
-  { title: 'Noise Suppression', component: NoiseSuppressionVisual },
-  { title: 'Sub-Band Peaks', component: SubBandPeakVisual },
-  { title: 'Constellation Map', component: ConstellationVisual },
-  { title: 'Time-Delta Encoding', component: TimeDeltaVisual },
-  { title: 'Inverted Index', component: InvertedIndexVisual },
-  { title: 'Histogram Voting', component: HistogramVotingVisual },
-];
 
 function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
   const [statusText, setStatusText] = useState('Sing, hum, or play to search');
@@ -47,15 +24,6 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
 
   const volume = useAudioVolume(isRecording ? micStream : null, { fftSize: 64, smoothingTimeConstant: 0.5 });
   const navigate = useNavigate();
-
-  // Auto-cycle diagrams
-  useEffect(() => {
-    if (!panelOpen) return;
-    const timer = setInterval(() => {
-      setDiagramIdx(prev => (prev + 1) % DIAGRAM_STEPS.length);
-    }, 6000);
-    return () => clearInterval(timer);
-  }, [panelOpen]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -238,8 +206,6 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
     addLog('Processing cancelled', 'warn');
   };
 
-  const DiagramComponent = DIAGRAM_STEPS[diagramIdx].component;
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 140 }}
@@ -247,12 +213,12 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
       exit={{ opacity: 0, y: 140 }}
       className="absolute inset-0 w-full h-full flex flex-col z-10"
     >
-      {/* ── Top Area: Mic + Wave ── */}
+      {/* Top Area: Mic + Wave */}
       <div
         className="relative shrink-0 transition-all duration-500 ease-out"
         style={{ height: panelOpen ? '50%' : '100%' }}
       >
-        {/* Bar visualizer background — always centered in this container */}
+        {/* Bar visualizer background - always centered in this container */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-48 sm:h-64 z-0 pointer-events-none opacity-60">
           <BarVisualizer 
             state={isProcessing ? "thinking" : isRecording ? "speaking" : "listening"} 
@@ -305,7 +271,7 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
           </div>
         </div>
 
-        {/* Toggle button — pinned to bottom of top area */}
+        {/* Toggle button - pinned to bottom of top area */}
         <button
           onClick={() => setPanelOpen(prev => !prev)}
           className={`absolute bottom-3 left-2 z-20 flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-all duration-200 border backdrop-blur-xl ${
@@ -319,7 +285,7 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
         </button>
       </div>
 
-      {/* ── Bottom Panel — all 3 visible side-by-side at 50% height ── */}
+      {/* Bottom Panel - 2 visible side-by-side at 50% height */}
       <AnimatePresence>
         {panelOpen && (
           <motion.div
@@ -331,7 +297,7 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
           >
             <div className="w-full h-full flex">
 
-              {/* ── 1/3: Spectrogram ── */}
+              {/* Spectrogram */}
               <div className="flex-1 flex flex-col border-r border-zinc-800/60 min-w-0">
                 <div className="flex-1 min-h-0 p-2">
                   <Spectrogram
@@ -346,12 +312,12 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
                 </div>
               </div>
 
-              {/* ── 1/3: Logs ── */}
+              {/* Logs */}
               <div className="flex-1 flex flex-col border-r border-zinc-800/60 min-w-0">
                 <div className="flex-1 overflow-y-auto px-4 py-3 font-mono text-xs custom-scrollbar min-h-0">
                   {logs.length === 0 && (
                     <div className="flex items-center justify-center h-full text-zinc-700 text-xs text-center px-4">
-                      No logs yet — start recording to see pipeline output
+                      No logs yet - start recording to see pipeline output
                     </div>
                   )}
                   {logs.map((log, i) => (
@@ -387,48 +353,6 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
                   </div>
                 )}
               </div>
-
-              {/* ── 1/3: Diagrams (auto-cycling) ── */}
-              <div className="flex-1 flex flex-col min-w-0">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/60 shrink-0">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] font-bold text-[#7C93FB]">
-                      Step {diagramIdx + 1}
-                    </span>
-                    <span className="text-[12px] font-semibold text-zinc-300 tracking-tight">
-                      {DIAGRAM_STEPS[diagramIdx].title}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-[3px]">
-                    {DIAGRAM_STEPS.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setDiagramIdx(i)}
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                          i === diagramIdx 
-                            ? 'bg-[#7C93FB] shadow-[0_0_6px_rgba(124,147,251,0.6)] scale-125' 
-                            : 'bg-zinc-800 hover:bg-zinc-600'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 relative overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={diagramIdx}
-                      initial={{ opacity: 0, scale: 0.97 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="absolute inset-0"
-                    >
-                      <DiagramComponent active={true} />
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </div>
-
             </div>
           </motion.div>
         )}
