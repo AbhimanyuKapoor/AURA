@@ -2,101 +2,140 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aura</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@1,300;1,400;1,500&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <button id="start">Start</button>
-    <button id="stop" disabled>Stop</button>
+    <div class="wrapper">
+      <header>
+        <div class="brand">
+          <div class="brand-name">Aura</div>
+          <div class="brand-version">v1.0</div>
+        </div>
+        <div class="status-pill disconnected" id="statusPill">
+          <span class="status-dot disconnected" id="statusDot"></span>
+          <span id="statusLabel">Disconnected</span>
+        </div>
+      </header>
 
-    <br />
-    <hr />
+      <div class="grid">
+        <!-- RECOGNIZE -->
+        <div class="card span-2">
+          <div class="card-eyebrow">Microphone</div>
+          <div class="card-heading">Recognize a Song</div>
+          <div class="recognize-inner">
+            <div class="rec-left">
+              <div class="mic-display">
+                <div class="mic-ring" id="ring">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="9" y="2" width="6" height="11" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                    <line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                </div>
+                <div class="waveform" id="waveform">
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                  <div class="wv-bar"></div>
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="start">
+                  Start Listening
+                </button>
+                <button class="btn btn-secondary" id="stop" disabled>
+                  Stop
+                </button>
+              </div>
+              <div class="result-panel" id="resultBox">
+                <div class="result-indicator"></div>
+                <div class="result-text" id="result">
+                  Idle - press Start Listening to begin
+                </div>
+              </div>
+            </div>
 
-    <input type="file" id="songFile" accept="audio/*" />
-    <button onclick="uploadSong()">Upload Song</button>
+            <div class="rec-right">
+              <div class="card-eyebrow" style="margin-bottom: 10px">
+                Live Output
+              </div>
+              <div class="spectrogram-container">
+                <canvas id="spectrogramCanvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- UPLOAD -->
+        <div class="card">
+          <div class="card-eyebrow">Ingestion</div>
+          <div class="card-heading">Add to Database</div>
+          <div class="field">
+            <label>Song Title <span style="color: var(--err)">*</span></label>
+            <input
+              type="text"
+              id="songTitle"
+              placeholder="e.g. Bohemian Rhapsody"
+            />
+          </div>
+          <div class="field">
+            <label>Artist</label>
+            <input type="text" id="songArtist" placeholder="e.g. Queen" />
+          </div>
+          <div class="field">
+            <label>Audio File <span style="color: var(--err)">*</span></label>
+          </div>
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="songFile" accept="audio/*" />
+            <div class="drop-icon">♪</div>
+            <div class="drop-text">
+              <strong>Choose file</strong> or drag & drop
+            </div>
+            <div id="fileName"></div>
+          </div>
+          <button
+            class="btn btn-primary"
+            onclick="uploadSong()"
+            style="width: 100%"
+          >
+            Upload Song
+          </button>
+          <div id="uploadStatus"></div>
+        </div>
+
+        <!-- LOGS -->
+        <div class="card">
+          <div class="card-eyebrow">Pipeline</div>
+          <div class="card-heading">Processing Logs</div>
+          <div class="logs-panel" id="logsPanel">
+            <div class="logs-empty" id="logsEmpty">
+              Waiting for pipeline output…
+            </div>
+            <div class="logs-stream" id="logsStream" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
   </body>
-
-  <script>
-    let ws;
-    let recorder;
-    let stream;
-
-    const startBtn = document.getElementById("start");
-    const stopBtn = document.getElementById("stop");
-
-    startBtn.onclick = start;
-    stopBtn.onclick = stop;
-
-    // Websocket Functions
-    async function start() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Mic permission granted");
-      } catch (e) {
-        console.error("Mic permission error:", e);
-        alert("Mic permission denied");
-        return;
-      }
-
-      recorder = new MediaRecorder(stream);
-      recorder.onstart = () => console.log("Recorder started");
-      recorder.onstop = () => console.log("Recorder stopped");
-
-      // encoded audio chunk sent to backend
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-          ws.send(e.data);
-        }
-      };
-
-      ws = new WebSocket("ws://localhost:8080/ws/audio");
-
-      ws.onopen = () => {
-        console.log("WS open");
-        recorder.start(1000);
-      };
-
-      ws.onclose = (e) => {
-        console.log("WS closed:", e.code, e.reason);
-      };
-
-      ws.onerror = (e) => {
-        console.log("WS error", e);
-      };
-
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-    }
-
-    function stop() {
-      recorder?.stop();
-      stream?.getTracks().forEach((t) => t.stop());
-      ws?.close();
-
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-
-    // Song Ingestion Function
-    async function uploadSong() {
-      const fileInput = document.getElementById("songFile");
-      if (!fileInput.files.length) {
-        alert("Select a file");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("song", fileInput.files[0]);
-
-      const res = await fetch("http://localhost:8080/songs/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        alert("Song uploaded");
-      } else {
-        alert("Upload failed");
-      }
-    }
-  </script>
 </html>

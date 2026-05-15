@@ -1,15 +1,69 @@
 package audio
 
-import "fmt"
+import (
+	"aura/fingerprint"
+	"aura/storage"
+	"fmt"
+	"os"
+)
 
-// Song recognition pipeline using user audio
-func RunRecognitionPipeline(rawPath string) error {
-	_, meta, err := NormalizeAudio(rawPath, "tmp")
+// RunRecognitionPipeline processes a short query audio clip and returns
+// the best-matching song from the database.
+//
+// Returns nil when audio is valid but no match was found.
+// Returns an error only if the pipeline itself fails.
+func RunRecognitionPipeline(rawPath string) ([]fingerprint.MatchResult, error) {
+	// print to stdout for non-WS callers by default
+	reporter := Reportf(func(format string, args ...any) {
+		fmt.Printf(format+"\n", args...)
+	})
+	return RunRecognitionPipelineWithReporter(rawPath, reporter)
+}
+
+func RunRecognitionPipelineWithReporter(rawPath string, reporter Reportf) ([]fingerprint.MatchResult, error) {
+	// Normalize -> mono, 22050Hz, 16-bit WAV
+	normalizedPath, meta, err := NormalizeAudio(rawPath, "tmp")
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("recognition: normalize: %w", err)
+	}
+	defer os.Remove(normalizedPath)
+
+	reporter.Printf("[recognition] normalized: duration=%.2fs sampleRate=%dHz",
+		meta.Duration, meta.SampleRate)
+
+	// Read WAV -> float64 samples -> spectrogram
+	wavData, err := ReadWAV(normalizedPath)
+	if err != nil {
+		return nil, fmt.Errorf("recognition: read WAV: %w", err)
 	}
 
-	fmt.Printf("Normalized Audio, Metadata: %v\n", meta)
+	spectrogram := ComputeSpectrogram(wavData.Samples)
+	reporter.Printf("[recognition] spectrogram: %d frames", len(spectrogram))
 
-	return nil
+	// Extract peaks from spectrogram
+	peaks := fingerprint.ExtractPeaks(spectrogram)
+	reporter.Printf("[recognition] peaks: %d extracted", len(peaks))
+
+	if len(peaks) == 0 {
+		reporter.Printf("[recognition] no peaks found - audio too quiet or too short")
+		return nil, fmt.Errorf("recognition: no peaks found - audio too quiet or too short")
+	}
+
+	// Generate hashes from peaks + match from DB
+	hashes := fingerprint.GenerateHashes(peaks)
+	reporter.Printf("[recognition] hashes: %d generated, querying DB...", len(hashes))
+
+	result, err := fingerprint.ScoreMatches(hashes, storage.LookupHashes)
+	if err != nil {
+		return nil, fmt.Errorf("recognition: score matches: %w", err)
+	}
+
+	if len(result) == 0 {
+		reporter.Printf("[recognition] no match found")
+	} else {
+		reporter.Printf("[recognition] matched song #%d with score %d",
+			result[0].SongID, result[0].Score)
+	}
+
+	return result, nil
 }
