@@ -1,20 +1,16 @@
 package fingerprint
 
 const (
-	// These must match the constants in audio/fft.go and audio/normalizer.go
+	// must match the constants in audio/fft.go and audio/normalizer.go
 	fftFrameSize = 4096
 	sampleRate   = 22050
 
-	// MagnitudeThreshold filters out noise.
-	// Bins below this value are treated as silence and ignored.
-	// Tune this up if you get too many false matches, down if you miss songs.
+	// Filters out noise, below this value are treated as silence and ignored
 	MagnitudeThreshold = 5.0
 )
 
-// frequencyBands splits the audible range into zones.
-// We pick ONE dominant peak per band per frame - this ensures we capture
-// energy across the full spectrum, not just the loudest frequency.
-// This mirrors the approach in Wang's original Shazam paper.
+// One dominant peak per band per frame - ensures to capture
+// energy across the full spectrum, not just the loudest frequency
 var frequencyBands = []struct{ Low, High int }{
 	{0, 500},
 	{500, 1000},
@@ -24,11 +20,11 @@ var frequencyBands = []struct{ Low, High int }{
 	{8000, 11025}, // up to Nyquist limit at 22050 Hz
 }
 
-// Peak is a dominant frequency at a specific point in time.
-// A song is represented as a "constellation" of these peaks.
+// Dominant frequency at a specific point in time.
+// Song is represented as a "constellation" of peaks
 type Peak struct {
-	TimeFrame int     // which FFT frame (time axis)
-	FreqBin   int     // which frequency bin (frequency axis)
+	TimeFrame int     // FFT frame (time axis)
+	FreqBin   int     // frequency bin (frequency axis)
 	Magnitude float64 // strength - used for threshold filtering only
 }
 
@@ -38,11 +34,12 @@ func freqToIndex(hz int) int {
 	return hz * fftFrameSize / sampleRate
 }
 
-// ExtractPeaks scans every time frame of the spectrogram and picks the
-// loudest frequency bin within each band. Weak peaks (below MagnitudeThreshold)
-// are discarded - they're likely background noise or silence.
+// Scans every time frame of the spectrogram and picks the
+// loudest frequency bin within each band.
 //
-// Output is a list of (time, frequency) constellation points, sorted by time.
+// # Weak peaks, discarded - background noise
+//
+// Output -> list of (time, frequency) constellation points, sorted by time
 func ExtractPeaks(spectrogram Spectrogram) []Peak {
 	var peaks []Peak
 

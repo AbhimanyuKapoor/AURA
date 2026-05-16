@@ -14,8 +14,6 @@ const (
 	TargetZoneDT = 30
 )
 
-// FingerprintHash is one hash derived from a pair of constellation peaks.
-// Thousands of these represent a single song's fingerprint.
 type FingerprintHash struct {
 	Hash       int64 // encodes (anchorFreq, targetFreq, timeDelta)
 	TimeOffset int   // anchor's frame index - used for time-coherence scoring
@@ -32,14 +30,12 @@ func encodeHash(anchorFreq, targetFreq, timeDelta int) int64 {
 
 // GenerateHashes creates combinatorial fingerprint hashes from a peak list.
 //
-// Algorithm (from Wang's Shazam paper):
-//  1. For each "anchor" peak, look forward in time
-//  2. Pair it with up to TargetZoneSize "target" peaks within the time window
-//  3. Encode (anchorFreq, targetFreq, timeDelta) as a single hash
-//  4. Store the anchor's time offset alongside the hash
+//	For each "anchor" peak, look forward in time
+//	Pair it with up to TargetZoneSize "target" peaks within the time window
+//	Encode (anchorFreq, targetFreq, timeDelta) as a single hash
+//	Store the anchor's time offset alongside the hash
 //
-// The time offset is what enables time-coherence matching later -
-// a real match will have all its hashes offset by the same time delta.
+// A real match will have all its hashes offset by the same time delta.
 func GenerateHashes(peaks []Peak) []FingerprintHash {
 	var hashes []FingerprintHash
 

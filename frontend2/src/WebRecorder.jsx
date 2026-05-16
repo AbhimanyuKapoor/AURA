@@ -150,13 +150,13 @@ function WebRecorder({ isRecording, setIsRecording, micStream, setMicStream }) {
                 ? d.matches.map(m => ({
                     track: m.title,
                     artist: m.artist,
-                    confidence: Math.min((m.score * 5), 99.9).toFixed(1),
+                    confidence: Math.min((m.score * 2), 99.9).toFixed(1),
                     score: m.score
                   }))
                 : [{
                     track: d.title,
                     artist: d.artist,
-                    confidence: Math.min((d.score * 5), 99.9).toFixed(1),
+                    confidence: Math.min((d.score * 2), 99.9).toFixed(1),
                     score: d.score,
                   }];
               

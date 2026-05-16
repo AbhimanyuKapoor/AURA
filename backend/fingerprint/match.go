@@ -14,16 +14,9 @@ type MatchResult struct {
 
 // ScoreMatches finds the best-matching songs using time-coherence scoring.
 //
-// Why this works (the key insight from Wang's paper):
-//   - For the correct song, every matching hash pair will have the same
-//     time difference: (dbTimeOffset - queryTimeOffset) = constant
-//   - This is because the query clip is just a time-shifted slice of the song
-//   - For a wrong song or random noise, the time differences are all random
-//
-// So we build a histogram of (songID -> timeDelta -> count).
+// Histogram of (songID -> timeDelta -> count).
 // The song with the highest spike in that histogram is the match.
 //
-// lookupFn is a batch DB query - we pass all hashes at once to avoid N+1 queries.
 // Returns up to 5 top matches sorted by score descending.
 func ScoreMatches(
 	queryHashes []FingerprintHash,
@@ -60,7 +53,6 @@ func ScoreMatches(
 	// histogram[songID][timeDelta] = number of hashes that agree on this delta
 	//
 	// timeDelta = dbTimeOffset - queryTimeOffset
-	// All genuine matches for the correct song will share the SAME timeDelta.
 	histogram := make(map[int]map[int]int)
 
 	for hash, dbMatches := range dbResults {

@@ -36,7 +36,7 @@ type wsResult struct {
 
 	Found   bool      `json:"found"`
 	Matches []WSMatch `json:"matches,omitempty"`
-	
+
 	// Legacy fields for backward compatibility, although we will use Matches.
 	SongID int    `json:"song_id,omitempty"`
 	Title  string `json:"title,omitempty"`
@@ -118,14 +118,14 @@ func AudioWS(w http.ResponseWriter, r *http.Request) {
 
 						res, err := audio.RunRecognitionPipelineWithReporter(path, reporter)
 						if err == nil && len(res) > 0 && res[0].Score >= 45 {
-							// Match found! Only trigger if score >= 45 to avoid noise
+							// Only trigger if score >= 45 to avoid noise
 							resp := wsResult{
 								Type:   "result",
 								Found:  true,
 								SongID: res[0].SongID,
 								Score:  res[0].Score,
 							}
-							
+
 							for _, r := range res {
 								if song, err := storage.GetSongByID(r.SongID); err == nil {
 									resp.Matches = append(resp.Matches, WSMatch{
@@ -177,6 +177,7 @@ done:
 	reporter := audio.Reportf(func(format string, args ...any) {
 		_ = writeJSON(wsResult{Type: "log", Message: fmt.Sprintf(format, args...)})
 	})
+
 	result, err := audio.RunRecognitionPipelineWithReporter(rawPath, reporter)
 	if err != nil {
 		log.Printf("AudioWS: final recognition failed: %v", err)
@@ -194,7 +195,9 @@ done:
 		resp.Score = result[0].Score
 
 		for _, r := range result {
-			if r.Score < 45 { continue } // Only include high-quality matches in the list
+			if r.Score < 45 {
+				continue
+			} // Only include high-quality matches in the list
 			if song, err := storage.GetSongByID(r.SongID); err == nil {
 				resp.Matches = append(resp.Matches, WSMatch{
 					SongID: r.SongID,
