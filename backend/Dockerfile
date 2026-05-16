@@ -1,7 +1,9 @@
 FROM golang:1.25
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Install ffmpeg and yt-dlp
+RUN apt-get update \
+	&& apt-get install -y ffmpeg yt-dlp \
+	&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

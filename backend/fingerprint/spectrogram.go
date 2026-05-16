@@ -1,6 +1,6 @@
 package fingerprint
 
-// Spectrogram is a 2D time-frequency magnitude matrix produced by FFT analysis.
+// 2D time-frequency magnitude matrix produced by FFT
 //
 // Layout: Spectrogram[timeFrame][freqBin] = magnitude
 //
@@ -11,5 +11,5 @@ package fingerprint
 // With FrameSize=4096 and SampleRate=22050:
 //   - Frequency resolution ~ 5.38 Hz per bin
 //   - Time resolution ~ 93ms per frame (at 50% overlap)
-//   - 2048 usable bins covering 0 → 11025 Hz
+//   - 2048 usable bins covering 0 -> 11025 Hz
 type Spectrogram = [][]float64

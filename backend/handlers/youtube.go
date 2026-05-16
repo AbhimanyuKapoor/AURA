@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +42,8 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	enc := json.NewEncoder(w)
-	
-	// Mutex to protect multithreaded writes to the NDJSON stream
+
+	// protect multithreaded writes to the NDJSON stream
 	var streamMu sync.Mutex
 	writeEvent := func(evt UploadStreamEvent) bool {
 		streamMu.Lock()
@@ -56,7 +57,6 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 
 	writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[youtube] Preparing download for url: %s", url)})
 
-	// Create unique temp directory
 	if err := os.MkdirAll("tmp", 0755); err != nil {
 		writeEvent(UploadStreamEvent{Type: "error", Error: "server error"})
 		return
@@ -71,16 +71,16 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 
 	// Run yt-dlp
 	writeEvent(UploadStreamEvent{Type: "log", Message: "[youtube] Downloading audio (this may take a while for playlists)..."})
-	
-	// Output template puts files in the temp dir: Title.wav
+
+	// Output template
 	outTmpl := filepath.Join(tmpDir, "%(uploader)s - %(title)s.%(ext)s")
-	
+
 	cmd := exec.Command("yt-dlp",
 		"--extract-audio",
 		"--audio-format", "wav",
 		"--no-warnings",
-		"--newline", // important for streaming logs
-		"-i",        // ignore errors (e.g. unavailable videos in playlist)
+		"--newline",
+		"-i", // ignore errors (e.g. unavailable videos in playlist)
 		"-o", outTmpl,
 		"--exec", "echo AURA_READY:{}", // emit a signal right when a single track finishes completely
 		url,
@@ -95,14 +95,14 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var wg sync.WaitGroup
-	var processingErrors = 0
-	var successCount = 0
+	var processingErrors int32
+	var successCount int32
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
-		
+
 		if strings.HasPrefix(trimmed, "AURA_READY:") {
 			filePath := strings.TrimPrefix(trimmed, "AURA_READY:")
 			filePath = strings.Trim(filePath, "\"' ")
@@ -110,41 +110,41 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 			writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[yt-dlp] Download finished: %s", filepath.Base(filePath))})
 
 			wg.Add(1)
-			// Launch goroutine to fingerprint concurrently WHILE remaining downloads continue!
+			// fingerprint concurrently while remaining downloads continue
 			go func(file string) {
 				defer wg.Done()
 
 				songTitle := strings.TrimSuffix(filepath.Base(file), ".wav")
-				
+
 				title := songTitle
 				artist := "YouTube"
-				
+
 				parts := strings.SplitN(songTitle, " - ", 2)
 				if len(parts) == 2 {
 					artist = parts[0]
 					title = parts[1]
 				}
-				
-				writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[%s] Generating acoustic fingerprints...", title)})
-				
+
+				writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[%s] Generating fingerprints...", title)})
+
 				songID, err := storage.CreateSong(storage.Song{Title: title, Artist: artist})
 				if err != nil {
 					log.Printf("IngestYouTube: create record: %v", err)
 					writeEvent(UploadStreamEvent{Type: "error", Error: fmt.Sprintf("DB error for %s", title)})
-					processingErrors++
+					atomic.AddInt32(&processingErrors, 1)
 					return
 				}
-				
+
 				reporter := audio.Reportf(func(format string, args ...any) {
 					_ = writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[%s] %s", title, fmt.Sprintf(format, args...))})
 				})
-				
+
 				hashes, err := audio.RunIngestionPipelineWithReporter(file, reporter)
 				if err != nil {
 					log.Printf("IngestYouTube: pipeline failed for %s: %v", file, err)
 					storage.DeleteSong(songID)
 					writeEvent(UploadStreamEvent{Type: "error", Error: fmt.Sprintf("Ingestion failed for %s", title)})
-					processingErrors++
+					atomic.AddInt32(&processingErrors, 1)
 					return
 				}
 
@@ -152,41 +152,42 @@ func IngestYouTubeStream(w http.ResponseWriter, r *http.Request) {
 					log.Printf("IngestYouTube: store fingerprints failed for %s: %v", file, err)
 					storage.DeleteSong(songID)
 					writeEvent(UploadStreamEvent{Type: "error", Error: fmt.Sprintf("Storage failed for %s", title)})
-					processingErrors++
+					atomic.AddInt32(&processingErrors, 1)
 					return
 				}
 
-				successCount++
+				atomic.AddInt32(&successCount, 1)
 				writeEvent(UploadStreamEvent{Type: "done", SongID: songID, Message: fmt.Sprintf("Added: %s", title)})
 			}(filePath)
 
 			continue
 		}
-		
+
 		// Normal streaming logs
-		if strings.HasPrefix(trimmed, "[download] Destination:") || 
-		   strings.Contains(trimmed, "100%") || 
-		   strings.HasPrefix(trimmed, "[ExtractAudio]") ||
-		   strings.HasPrefix(trimmed, "ERROR:") {
+		if strings.HasPrefix(trimmed, "[download] Destination:") ||
+			strings.Contains(trimmed, "100%") ||
+			strings.HasPrefix(trimmed, "[ExtractAudio]") ||
+			strings.HasPrefix(trimmed, "ERROR:") {
 			cleanMsg := strings.Replace(trimmed, "[download] ", "", 1)
 			cleanMsg = strings.Replace(cleanMsg, "[ExtractAudio] ", "", 1)
 			writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[yt-dlp] %s", cleanMsg)})
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
-		log.Printf("yt-dlp error: %v", err)
+	cmdErr := cmd.Wait()
+	if cmdErr != nil {
+		log.Printf("yt-dlp error: %v", cmdErr)
 		writeEvent(UploadStreamEvent{Type: "error", Error: "Download command encountered an error - is the URL valid?"})
 	}
 
-	// Wait for ALL concurrent ingestion pipelines to finish!
+	// Wait for concurrent ingestion pipelines to finish
 	wg.Wait()
 
 	if processingErrors > 0 {
 		writeEvent(UploadStreamEvent{Type: "error", Error: fmt.Sprintf("Ingestion complete with %d error(s).", processingErrors)})
 	} else if successCount > 0 {
 		writeEvent(UploadStreamEvent{Type: "log", Message: fmt.Sprintf("[youtube] Successfully added %d track(s).", successCount)})
-	} else if err == nil {
+	} else if cmdErr == nil {
 		writeEvent(UploadStreamEvent{Type: "error", Error: "No audio tracks were successfully downloaded."})
 	}
 }

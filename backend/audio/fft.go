@@ -16,8 +16,7 @@ const (
 )
 
 // hammingWindow multiplies a frame by a Hamming window in-place.
-// This tapers the edges of each frame to zero, reducing spectral leakage
-// (the "smearing" effect that happens when you abruptly cut a signal).
+// Tapers the edges of each frame to zero, reducing spectral leakage
 func hammingWindow(frame []float64) {
 	n := len(frame)
 	for i := range frame {
@@ -59,11 +58,10 @@ func fft(x []complex128) []complex128 {
 
 // ComputeSpectrogram converts raw audio samples into a 2D magnitude matrix.
 //
-// Process:
-//  1. Slice samples into overlapping FrameSize windows
-//  2. Apply Hamming window to each frame
-//  3. Run FFT → complex spectrum
-//  4. Take magnitude (|complex|) of positive frequencies only
+//	Slice samples into overlapping FrameSize windows
+//	Apply Hamming window to each frame
+//	Run FFT -> complex spectrum
+//	Take magnitude (|complex|) of positive frequencies only
 //
 // Returns: spectrogram[timeFrame][freqBin] = magnitude
 // Frequency of bin k = k * SampleRate / FrameSize  (e.g. bin 100 ~ 538 Hz)
